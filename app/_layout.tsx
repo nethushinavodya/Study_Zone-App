@@ -1,24 +1,30 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { AuthProvider } from "@/context/AuthContext";
+import { LoaderProvider } from "@/context/LoaderContext";
+import { Slot } from "expo-router";
+import React from "react";
+import { View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import "../global.css";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+// App.tsx ->
+const RootLayout = () => {
+  const insets = useSafeAreaInsets();
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  console.log(insets);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    // <SafeAreaView className="flex-1">
+    <LoaderProvider>
+      <AuthProvider>
+        <View style={{ marginTop: insets.top, flex: 1 }}>
+          <Slot />
+        </View>
+      </AuthProvider>
+      <Toast />
+    </LoaderProvider>
+    // </SafeAreaView>
   );
-}
+};
+
+export default RootLayout;
