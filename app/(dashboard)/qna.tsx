@@ -16,6 +16,9 @@ import {
   postAnswer,
   fetchAnswersOnce,
 } from "../../service/questions";
+import { auth } from "../../service/firebase";
+import { signInAnonymously } from "firebase/auth";
+import { useAuth } from "../../hooks/useAuth";
 
 let ImagePicker: any = null;
 if (Platform.OS !== "web") {
@@ -25,6 +28,9 @@ if (Platform.OS !== "web") {
 }
 
 export default function QnA() {
+  const { user } = useAuth();
+  const listRef = React.useRef<any>(null);
+  const inputRefs = React.useRef<Record<string, any>>({});
   const [posts, setPosts] = React.useState<any[]>([]);
   const [replyingId, setReplyingId] = React.useState<string | null>(null);
   const [replyText, setReplyText] = React.useState("");
@@ -35,7 +41,6 @@ export default function QnA() {
     {},
   );
   const [likedMap, setLikedMap] = React.useState<Record<string, boolean>>({});
-  // keep a ref to the current posts so we can merge replies when questions update
   const postsRef = React.useRef<any[]>([]);
   const updatePosts = (nextOrUpdater: any) => {
     setPosts((prev) => {
@@ -46,7 +51,6 @@ export default function QnA() {
   };
 
   const answersRef = React.useRef<Record<string, () => void>>({});
-  // keep replies separately so they never get lost when questions re-sync
   const repliesRefMap = React.useRef<Record<string, any[]>>({});
 
   useEffect(() => {
@@ -88,11 +92,8 @@ export default function QnA() {
      };
    }, []);
 
-  // reload handled by focus effect and explicit loadPosts calls
-
   const like = async (id: string) => {
-    if (likedMap[id]) return; // already liked locally
-    // optimistic update
+    if (likedMap[id]) return;
     setLikedMap((s) => ({ ...s, [id]: true }));
     updatePosts((prev: any[]) => prev.map((p) => (p.id === id ? { ...p, likes: (p.likes || 0) + 1 } : p)));
     try {
@@ -107,10 +108,28 @@ export default function QnA() {
   const submitReply = async (postId: string) => {
     if (!replyText.trim() && !replyImage) return;
     try {
+      // ensure there's an authenticated user (anonymous if needed)
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (err) {
+          console.warn('Anonymous sign-in failed for reply', err);
+        }
+      }
       await postAnswer(postId, replyText.trim(), replyImage);
+      // After posting, fetch the full answers list and update cache so UI shows others
+      try {
+        const all = await fetchAnswersOnce(postId);
+        repliesRefMap.current[postId] = all;
+        updatePosts((prev: any[]) => prev.map((p) => (p.id === postId ? { ...p, replies: all } : p)));
+      } catch (e) {
+        console.warn('fetchAnswersOnce after submitReply failed', e);
+      }
     } catch (e) {
       // ignore
     }
+    // keep replies collapsed so the user sees the "Show more" control when there are >2 replies
+    setExpandedIds((s) => ({ ...s, [postId]: false }));
     setReplyingId(null);
     setReplyText("");
     setReplyImage(undefined);
@@ -163,12 +182,13 @@ export default function QnA() {
     <View className="flex-1 px-6 py-8 bg-green-50">
       <Text className="text-3xl font-bold text-green-600 mb-6">Q&amp;A</Text>
       <FlatList
-        data={posts}
-        keyExtractor={(i) => i.id}
-        ListEmptyComponent={
-          <Text className="text-gray-600">No questions yet. Tap + to ask.</Text>
-        }
-        renderItem={({ item }) => {
+        ref={listRef}
+         data={posts}
+         keyExtractor={(i) => i.id}
+         ListEmptyComponent={
+           <Text className="text-gray-600">No questions yet. Tap + to ask.</Text>
+         }
+         renderItem={({ item }) => {
           const imgUri =
             item.imageUrl ||
             item.image ||
@@ -188,6 +208,11 @@ export default function QnA() {
                   }}
                 />
               ) : null}
+              {/* author row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <MaterialIcons name="person" size={18} color="#16A34A" />
+                <Text style={{ marginLeft: 8, fontWeight: '600', color: '#065f46' }}>{item.userId === user?.uid ? 'You' : (item.userName ?? 'Anonymous')}</Text>
+              </View>
               <Text className="text-base text-gray-900 mb-2">{item.text}</Text>
               <View className="flex-row items-center justify-between">
                 <View />
@@ -208,77 +233,37 @@ export default function QnA() {
                     <Text style={{ color: '#16A34A', marginLeft: 8, fontWeight: '600' }}>{item.likes || 0}</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() =>
-                      setReplyingId(replyingId === item.id ? null : item.id)
-                    }
+                    onPress={() => {
+                      const willOpen = replyingId !== item.id;
+                      setReplyingId(willOpen ? item.id : null);
+                      // after state updates, scroll to the item and focus the reply input
+                      setTimeout(() => {
+                        if (willOpen) {
+                          // scroll the FlatList so the item is visible near top
+                          try {
+                            const idx = postsRef.current.findIndex((p) => p.id === item.id);
+                            if (typeof idx === 'number' && idx >= 0 && listRef.current?.scrollToIndex) {
+                              listRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
+                            }
+                          } catch (e) {
+                            // ignore
+                          }
+                          // focus the text input if available
+                          try {
+                            inputRefs.current[item.id]?.focus?.();
+                          } catch (e) {
+                            // ignore
+                          }
+                        }
+                      }, 100);
+                    }}
                   >
                     <Text className="text-gray-600">Reply</Text>
                   </Pressable>
                 </View>
               </View>
 
-              {/* Replies list (show only first 2 unless expanded) */}
-              {Array.isArray(item.replies) && item.replies.length ? (
-                <View className="mt-3">
-                  {(() => {
-                    // normalize replies array and sort by createdAt (oldest first)
-                    const storedReplies = repliesRefMap.current[item.id];
-                    const repliesRaw = storedReplies ?? (item.replies || []);
-                    const getTime = (t: any) => {
-                      if (!t) return 0;
-                      if (typeof t === 'number') return t;
-                      if (t.toDate) return t.toDate().getTime();
-                      const parsed = Date.parse(String(t));
-                      return Number.isNaN(parsed) ? 0 : parsed;
-                    };
-                    const replies = repliesRaw.slice().sort((a: any, b: any) => getTime(a.createdAt) - getTime(b.createdAt));
-                    const isExpanded = !!expandedIds[item.id];
-                    const shown = isExpanded ? replies : replies.slice(0, 2);
-
-                    return (
-                      <>
-                        {shown.map((r: any) => (
-                          <View key={String(r.id)} className="bg-green-50 p-3 rounded-lg mb-2">
-                            {r.imageUrl || r.image || r.imageBase64 || r.dataUrl ? (
-                              <Image
-                                source={{ uri: r.imageUrl || r.image || r.imageBase64 || r.dataUrl }}
-                                style={{ width: '100%', height: 140, borderRadius: 8, marginBottom: 8 }}
-                              />
-                            ) : null}
-                            {r.text ? (
-                              <Text className="text-sm text-gray-800">{r.text}</Text>
-                            ) : null}
-                          </View>
-                        ))}
-
-                        {replies.length > 2 ? (
-                          <Pressable onPress={async () => {
-                            const willExpand = !expandedIds[item.id];
-                            console.debug('[ShowMore] clicked', item.id, 'willExpand=', willExpand);
-                            // expand immediately so UI shows the intent
-                            setExpandedIds((s) => ({ ...s, [item.id]: willExpand }));
-                            if (willExpand) {
-                              try {
-                                const all = await fetchAnswersOnce(item.id);
-                                console.debug('[fetchAnswersOnce] got', all?.length, 'answers for', item.id);
-                                repliesRefMap.current[item.id] = all;
-                                updatePosts((prev: any[]) => prev.map((p) => p.id === item.id ? { ...p, replies: all } : p));
-                              } catch (err) {
-                                console.warn('fetchAnswersOnce failed', err);
-                              }
-                            }
-                          }}>
-                            <Text className="text-green-600">
-                              {isExpanded ? 'Show less' : `Show more (${replies.length - 2})`}
-                            </Text>
-                          </Pressable>
-                        ) : null}
-                      </>
-                    );
-                  })()}
-                </View>
-              ) : null}
-
+              {/* Reply input placed immediately after actions so user sees it above replies */}
               {replyingId === item.id ? (
                 <View className="mt-2">
                   {/* Reply input: bordered container with inline camera icon */}
@@ -317,6 +302,7 @@ export default function QnA() {
                       placeholder="Write a reply"
                       value={replyText}
                       onChangeText={setReplyText}
+                      ref={(r) => { inputRefs.current[item.id] = r; }}
                       multiline={false}
                       style={{
                         flex: 1,
@@ -359,6 +345,73 @@ export default function QnA() {
                       <Text>Cancel</Text>
                     </Pressable>
                   </View>
+                </View>
+              ) : null}
+
+              {/* Replies list (show only first 2 unless expanded) */}
+              {Array.isArray(item.replies) && item.replies.length ? (
+                <View className="mt-3">
+                  {(() => {
+                    // normalize replies array and sort by createdAt (oldest first)
+                    const storedReplies = repliesRefMap.current[item.id];
+                    const repliesRaw = storedReplies ?? (item.replies || []);
+                    const getTime = (t: any) => {
+                      if (!t) return 0;
+                      if (typeof t === 'number') return t;
+                      if (t.toDate) return t.toDate().getTime();
+                      const parsed = Date.parse(String(t));
+                      return Number.isNaN(parsed) ? 0 : parsed;
+                    };
+                    const replies = repliesRaw.slice().sort((a: any, b: any) => getTime(a.createdAt) - getTime(b.createdAt));
+                    const isExpanded = !!expandedIds[item.id];
+                    const shown = isExpanded ? replies : replies.slice(0, 2);
+
+                    return (
+                      <>
+                        {shown.map((r: any) => (
+                          <View key={String(r.id)} className="bg-green-50 p-3 rounded-lg mb-2">
+                            {/* reply author */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                              <MaterialIcons name="person" size={16} color="#16A34A" />
+                              <Text style={{ marginLeft: 8, fontSize: 12, fontWeight: '600', color: '#065f46' }}>{r.userId === user?.uid ? 'You' : (r.userName ?? 'Anonymous')}</Text>
+                            </View>
+                            {r.imageUrl || r.image || r.imageBase64 || r.dataUrl ? (
+                              <Image
+                                source={{ uri: r.imageUrl || r.image || r.imageBase64 || r.dataUrl }}
+                                style={{ width: '100%', height: 140, borderRadius: 8, marginBottom: 8 }}
+                              />
+                            ) : null}
+                            {r.text ? (
+                              <Text className="text-sm text-gray-800">{r.text}</Text>
+                            ) : null}
+                          </View>
+                        ))}
+
+                        {replies.length > 2 ? (
+                          <Pressable onPress={async () => {
+                            const willExpand = !expandedIds[item.id];
+                            console.debug('[ShowMore] clicked', item.id, 'willExpand=', willExpand);
+                            // expand immediately so UI shows the intent
+                            setExpandedIds((s) => ({ ...s, [item.id]: willExpand }));
+                            if (willExpand) {
+                              try {
+                                const all = await fetchAnswersOnce(item.id);
+                                console.debug('[fetchAnswersOnce] got', all?.length, 'answers for', item.id);
+                                repliesRefMap.current[item.id] = all;
+                                updatePosts((prev: any[]) => prev.map((p) => p.id === item.id ? { ...p, replies: all } : p));
+                              } catch (err) {
+                                console.warn('fetchAnswersOnce failed', err);
+                              }
+                            }
+                          }}>
+                            <Text className="text-green-600">
+                              {isExpanded ? 'Show less' : `Show more (${replies.length - 2})`}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                 </View>
               ) : null}
             </View>

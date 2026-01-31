@@ -11,6 +11,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { auth } from "@/service/firebase";
+import { signInAnonymously } from "firebase/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 let ImagePicker: any = null;
 if (Platform.OS !== "web") {
@@ -37,6 +40,8 @@ export default function AddQuestionModal({
   const [question, setQuestion] = useState("");
   const [imageUri, setImageUri] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const authorLabel = user ? 'You' : 'Anonymous';
 
   const pickImageWeb = (e: any) => {
     const file = e.target?.files?.[0];
@@ -68,6 +73,15 @@ export default function AddQuestionModal({
     const doSubmit = async () => {
       try {
         setLoading(true);
+        // ensure there's an authenticated user (anonymous if needed) so the question is associated
+        if (!auth.currentUser) {
+          try {
+            await signInAnonymously(auth);
+          } catch (e) {
+            // ignore; proceeding without auth may still work in your backend but prefer anon
+            console.warn('Anonymous sign-in failed', e);
+          }
+        }
         console.log('Submitting question payload', { question: question.trim(), image: imageUri });
         const result = onSubmit({ question: question.trim(), image: imageUri });
         // await whether onSubmit returns a promise or plain value
@@ -93,45 +107,61 @@ export default function AddQuestionModal({
             </Pressable>
           </View>
 
-          <TextInput
-            placeholder="Type your question here..."
-            value={question}
-            onChangeText={setQuestion}
-            style={styles.input}
-            multiline
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+            {user?.photoURL ? (
+              <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+            ) : (
+              <MaterialIcons name="person" size={18} color="#16A34A" />
+            )}
+            <Text style={{ marginLeft: 8, fontWeight: '600', color: '#065f46' }}>{authorLabel}</Text>
+          </View>
+
+          <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {Platform.OS === 'web' ? (
+                <>
+                  <input
+                    id="add-photo-input"
+                    style={{ display: 'none' }}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={pickImageWeb}
+                  />
+                  <label htmlFor="add-photo-input" style={{ marginRight: 10, cursor: 'pointer' }}>
+                    <View style={styles.iconBtn as any}>
+                      <MaterialIcons name="camera-alt" size={20} color="#16A34A" />
+                    </View>
+                  </label>
+                </>
+              ) : (
+                <Pressable style={{ marginRight: 10 }} onPress={takePhotoNative}>
+                  <View style={styles.iconBtn as any}>
+                    <MaterialIcons name="camera-alt" size={20} color="#16A34A" />
+                  </View>
+                </Pressable>
+              )}
+
+              <TextInput
+                placeholder="Type your question here..."
+                value={question}
+                onChangeText={setQuestion}
+                style={{  flex: 1,
+                  height: 44,
+                  paddingVertical: 0,
+                  paddingHorizontal: 0,
+                  textAlignVertical: 'center',
+                  textAlign: 'left', }}
+                multiline
+              />
+            </View>
+          </View>
 
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={styles.preview} />
           ) : null}
 
           <View style={styles.row}>
-            <View style={styles.iconsContainer}>
-              {Platform.OS === "web" ? (
-                <>
-                  <input
-                    id="add-photo-input"
-                    style={{ display: "none" }}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={pickImageWeb}
-                  />
-                  <label htmlFor="add-photo-input">
-                    <View style={styles.iconBtn as any}>
-                      <MaterialIcons name="camera-alt" size={22} color="#111" />
-                    </View>
-                  </label>
-                </>
-              ) : (
-                <>
-                  <Pressable style={styles.iconBtn} onPress={takePhotoNative}>
-                    <MaterialIcons name="camera-alt" size={22} color="#111" />
-                  </Pressable>
-                </>
-              )}
-            </View>
-
             <Pressable
               style={[
                 styles.submitBtn,
@@ -175,7 +205,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   title: { fontSize: 18, fontWeight: "600" },
-  closeBtn: { position: "absolute", right: 8, top: 8, padding: 12 },
+  closeBtn: { padding: 8 },
   input: {
     borderWidth: 1,
     borderColor: "#e5e7eb",
@@ -195,11 +225,9 @@ const styles = StyleSheet.create({
   iconsContainer: { flexDirection: "row", alignItems: "center" },
   iconSpacing: { marginRight: 8 },
   iconBtn: {
-    padding: 10,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
   submitBtn: {
     paddingVertical: 10,
@@ -208,4 +236,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   submitText: { color: "#fff", fontWeight: "600" },
+  avatar: { width: 32, height: 32, borderRadius: 16 },
 });
