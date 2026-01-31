@@ -12,6 +12,9 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  runTransaction,
+  getDoc,
+  getDocs,
 } from "firebase/firestore";
 import { auth, db, storage } from "./firebase";
 import { ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
@@ -291,15 +294,44 @@ export function listenAnswers(
   });
 }
 
+export async function fetchAnswersOnce(questionId: string) {
+  const q = query(
+    collection(db, "questions", questionId, "answers"),
+    orderBy("createdAt", "asc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+}
+
 export async function likeQuestion(questionId: string) {
-  const qDoc = docRef(db, "questions", questionId);
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("Not authenticated");
+  const likeDocRef = docRef(db, "questions", questionId, "likes", uid);
+  const qDocRef = docRef(db, "questions", questionId);
   try {
-    await updateDoc(qDoc, { likes: increment(1) });
-  } catch {
-    try {
-      await setDoc(qDoc, { likes: 1 }, { merge: true });
-    } catch {
-      // ignore
-    }
+    await runTransaction(db, async (tx) => {
+      const likeSnap = await tx.get(likeDocRef);
+      if (likeSnap.exists()) {
+        // already liked; nothing to do
+        return;
+      }
+      tx.set(likeDocRef, { userId: uid, createdAt: serverTimestamp() });
+      tx.update(qDocRef, { likes: increment(1) });
+    });
+  } catch (e) {
+    // rethrow so caller can handle/log if needed
+    throw e;
+  }
+}
+
+export async function hasLikedQuestion(questionId: string) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return false;
+  try {
+    const likeDocRef = docRef(db, "questions", questionId, "likes", uid);
+    const snap = await getDoc(likeDocRef);
+    return snap.exists();
+  } catch (e) {
+    return false;
   }
 }
