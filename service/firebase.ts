@@ -7,7 +7,6 @@ import {
   setPersistence,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDJ19daty780_z7OFKNETHAaWwvYOPakMY",
@@ -31,4 +30,3 @@ if (Platform.OS === "web") {
 }
 
 export const db = getFirestore(app);
-export const storage = getStorage(app);
