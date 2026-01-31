@@ -8,9 +8,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import {
   likeQuestion,
   listenQuestions,
+  listenAnswers,
   postAnswer,
 } from "../../service/questions";
 
@@ -32,9 +34,38 @@ export default function QnA() {
     {},
   );
 
+  const answersRef = React.useRef<Record<string, () => void>>({});
+
   useEffect(() => {
-    const unsub = listenQuestions(setPosts);
-    return () => unsub();
+    const unsub = listenQuestions((items) => {
+      setPosts(items);
+      // attach answer listeners for each item
+      items.forEach((it: any) => {
+        if (answersRef.current[it.id]) return;
+        const unsubAns = listenAnswers(it.id, (answers) => {
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === it.id ? { ...p, replies: answers } : p,
+            ),
+          );
+        });
+        answersRef.current[it.id] = unsubAns;
+      });
+    });
+    return () => {
+      try {
+        unsub();
+      } catch (e) {
+        // ignore
+      }
+      Object.values(answersRef.current).forEach((u) => {
+        try {
+          u();
+        } catch (e) {
+          // ignore
+        }
+      });
+    };
   }, []);
 
   // reload handled by focus effect and explicit loadPosts calls
@@ -62,21 +93,41 @@ export default function QnA() {
   const pickReplyImageWeb = (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setReplyImage(url);
+    const reader = new FileReader();
+    reader.onerror = () => {};
+    reader.onload = () => {
+      const result = reader.result as string | null;
+      if (result) setReplyImage(result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const pickReplyImageNative = async () => {
     if (!ImagePicker) return;
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") return;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaType.Images,
         quality: 0.7,
+        base64: false,
       });
-      if (!result.cancelled) setReplyImage(result.uri);
+      // support both legacy result and new `assets` shape
+      const uri = (result as any).uri ?? (result as any).assets?.[0]?.uri;
+      if (uri) setReplyImage(uri);
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  const takeReplyPhotoNative = async () => {
+    if (!ImagePicker) return;
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") return;
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      const uri = (result as any).uri ?? (result as any).assets?.[0]?.uri;
+      if (uri) setReplyImage(uri);
     } catch (err) {
       // ignore
     }
@@ -84,7 +135,7 @@ export default function QnA() {
 
   return (
     <View className="flex-1 px-6 py-8 bg-green-50">
-      <Text className="text-3xl font-bold text-green-600 mb-6">Q&A</Text>
+      <Text className="text-3xl font-bold text-green-600 mb-6">Q&amp;A</Text>
       <FlatList
         data={posts}
         keyExtractor={(i) => i.id}
@@ -219,24 +270,24 @@ export default function QnA() {
                         <input
                           type="file"
                           accept="image/*"
+                          capture="environment"
                           style={{ display: "none" }}
                           id={`reply-file-${item.id}`}
                           onChange={(e: any) => pickReplyImageWeb(e)}
                         />
-                        <label
-                          htmlFor={`reply-file-${item.id}`}
-                          className="mr-3"
-                        >
-                          <Text className="text-green-600">Upload image</Text>
+                        <label htmlFor={`reply-file-${item.id}`} className="mr-3">
+                          <MaterialIcons name="camera-alt" size={22} color="#16A34A" />
                         </label>
                       </>
                     ) : (
-                      <Pressable
-                        onPress={pickReplyImageNative}
-                        className="mr-3"
-                      >
-                        <Text className="text-green-600">Add photo</Text>
-                      </Pressable>
+                      <>
+                        <Pressable onPress={takeReplyPhotoNative} className="mr-3">
+                          <MaterialIcons name="camera-alt" size={22} color="#16A34A" />
+                        </Pressable>
+                        <Pressable onPress={pickReplyImageNative} className="mr-3">
+                          <Text className="text-green-600">Add photo</Text>
+                        </Pressable>
+                      </>
                     )}
                   </View>
 

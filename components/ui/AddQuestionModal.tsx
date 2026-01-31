@@ -87,6 +87,7 @@ export default function AddQuestionModal({
     const doSubmit = async () => {
       try {
         setLoading(true);
+        console.log('Submitting question payload', { question: question.trim(), image: imageUri });
         const result = onSubmit({ question: question.trim(), image: imageUri });
         // await whether onSubmit returns a promise or plain value
         await Promise.resolve(result);

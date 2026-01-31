@@ -13,35 +13,14 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { auth, db, storage } from "./firebase";
+import { ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
+import { signInAnonymously } from "firebase/auth";
 
 const FIRESTORE_LIMIT = 1048487;
 
-async function tryCompressNative(uri: string) {
-  const widths = [1600, 1200, 800, 600, 400];
-  const qualities = [0.8, 0.7, 0.6, 0.5];
-  for (const w of widths) {
-    for (const q of qualities) {
-      try {
-        const result = await ImageManipulator.manipulateAsync(
-          uri,
-          [{ resize: { width: w } }],
-          {
-            compress: q,
-            format: ImageManipulator.SaveFormat.JPEG,
-          },
-        );
-        const b64 = await FileSystem.readAsStringAsync(result.uri, {
-          encoding: "base64",
-        });
-        const dataUrl = `data:image/jpeg;base64,${b64}`;
-        if (dataUrl.length <= FIRESTORE_LIMIT) return dataUrl;
-      } catch (e) {
-        // ignore and continue
-      }
-    }
-  }
-  return null;
+function makeStorageName(ext = "jpg") {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 }
 
 async function blobToDataUrl(blob: Blob) {
@@ -57,46 +36,146 @@ async function blobToDataUrl(blob: Blob) {
   });
 }
 
-export async function postQuestion(text: string, imageUri?: string) {
-  let imageBase64: string | null = null;
-
-  if (imageUri) {
-    if (imageUri.startsWith("data:")) {
-      // data URL from web
-      if (imageUri.length <= FIRESTORE_LIMIT) {
-        imageBase64 = imageUri;
-      } else {
-        imageBase64 = null;
-      }
-    } else {
-      // native URI: try reading base64 directly and compress if needed
-      try {
-        const base64 = await FileSystem.readAsStringAsync(imageUri, {
-          encoding: "base64",
-        });
-        const dataUrl = `data:image/jpeg;base64,${base64}`;
-        if (dataUrl.length <= FIRESTORE_LIMIT) {
-          imageBase64 = dataUrl;
-        } else {
-          const compressed = await tryCompressNative(imageUri);
-          imageBase64 = compressed;
-        }
-      } catch (e) {
-        imageBase64 = null;
-      }
-
-      // fallback: try fetch->blob->FileReader (helps on some RN configs and web)
-      if (!imageBase64) {
+async function tryCompressNative(uri: string) {
+  try {
+    const widths = [1200, 800, 600, 400];
+    const qualities = [0.8, 0.7, 0.6, 0.5];
+    for (const w of widths) {
+      for (const q of qualities) {
         try {
-          const res = await fetch(imageUri);
-          const blob = await res.blob();
-          const dataUrl = await blobToDataUrl(blob);
-          if (dataUrl.length <= FIRESTORE_LIMIT) imageBase64 = dataUrl;
-        } catch (err) {
-          // ignore fallback error
+          const result = await ImageManipulator.manipulateAsync(
+            uri,
+            [{ resize: { width: w } }],
+            { compress: q, format: ImageManipulator.SaveFormat.JPEG },
+          );
+          const b64 = await FileSystem.readAsStringAsync(result.uri, { encoding: "base64" });
+          const dataUrl = `data:image/jpeg;base64,${b64}`;
+          if (dataUrl.length <= FIRESTORE_LIMIT) return dataUrl;
+        } catch {
+          // ignore and continue
         }
       }
     }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+async function tryCompressDataUrlWeb(dataUrl: string) {
+  if (typeof document === "undefined") return null;
+  try {
+    return await new Promise<string | null>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const widths = [1200, 800, 600, 400];
+        const qualities = [0.9, 0.8, 0.7, 0.6, 0.5];
+        const origW = img.naturalWidth || img.width;
+        const origH = img.naturalHeight || img.height;
+
+        const tryNext = (wIndex = 0, qIndex = 0) => {
+          if (wIndex >= widths.length) return resolve(null);
+          const targetW = Math.min(widths[wIndex], origW);
+          const ratio = targetW / origW;
+          const targetH = Math.max(1, Math.round(origH * ratio));
+          const canvas = document.createElement("canvas") as HTMLCanvasElement;
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          const quality = qualities[qIndex];
+          try {
+            const out = canvas.toDataURL("image/jpeg", quality);
+            if (out.length <= FIRESTORE_LIMIT) return resolve(out);
+          } catch {
+            // ignore
+          }
+          let nextW = wIndex;
+          let nextQ = qIndex + 1;
+          if (nextQ >= qualities.length) {
+            nextQ = 0;
+            nextW = wIndex + 1;
+          }
+          tryNext(nextW, nextQ);
+        };
+        tryNext();
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function postQuestion(text: string, imageUri?: string) {
+  console.log('postQuestion called, imageUri:', imageUri);
+  // Try to obtain a dataURL and save it directly into Firestore.imageBase64
+  let imageBase64: string | null = null;
+
+  if (imageUri) {
+    // If it's already a data URL (web), save it directly (compress if too large)
+    if (imageUri.startsWith('data:')) {
+      if (imageUri.length <= FIRESTORE_LIMIT) {
+        imageBase64 = imageUri;
+      } else {
+        const compressed = await tryCompressDataUrlWeb(imageUri);
+        if (compressed) imageBase64 = compressed;
+      }
+    } else {
+      // Non-data URIs: try to upload to Storage and save download URL, else fallback to dataURL
+      try {
+        // ensure auth for Storage writes
+        if (!auth.currentUser) {
+          await signInAnonymously(auth).catch(() => {});
+        }
+        const uid = auth.currentUser?.uid ?? 'anon';
+        const name = makeStorageName('jpg');
+
+        // try fetch->blob and upload to storage
+        const res = await fetch(imageUri);
+        const blob = await res.blob();
+        const sref = storageRef(storage, `questions/${uid}/${name}`);
+        await uploadBytes(sref, blob as any);
+        imageBase64 = await getDownloadURL(sref);
+        console.log('Stored storage download URL into imageBase64 (blob path)');
+      } catch (storageErr) {
+        console.warn('Storage upload failed, falling back to saving data URL into Firestore:', storageErr);
+
+        // fallback: convert to data URL and compress if needed, then save the data URL in Firestore
+        try {
+          const res2 = await fetch(imageUri);
+          const blob2 = await res2.blob();
+          const dataUrl = await blobToDataUrl(blob2);
+          if (dataUrl.length <= FIRESTORE_LIMIT) imageBase64 = dataUrl;
+          else {
+            const compressed = await tryCompressDataUrlWeb(dataUrl);
+            if (compressed) imageBase64 = compressed;
+          }
+        } catch (e) {
+          console.warn('fetch->blob->dataUrl failed, trying FileSystem fallback', e);
+          try {
+            const b64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' });
+            const dataUrl = `data:image/jpeg;base64,${b64}`;
+            if (dataUrl.length <= FIRESTORE_LIMIT) imageBase64 = dataUrl;
+            else {
+              const compressed = await tryCompressNative(imageUri);
+              if (compressed) imageBase64 = compressed;
+            }
+          } catch (e2) {
+            console.warn('FileSystem fallback failed', e2);
+          }
+        }
+      }
+    }
+  }
+
+  // final fallback: if nothing succeeded, store the original imageUri so field isn't null
+  if (!imageBase64 && imageUri) {
+    console.warn('All attempts failed — saving original imageUri into imageBase64 as fallback');
+    imageBase64 = imageUri;
   }
 
   const dRef = await addDoc(collection(db, "questions"), {
@@ -106,18 +185,18 @@ export async function postQuestion(text: string, imageUri?: string) {
     createdAt: serverTimestamp(),
     likes: 0,
   });
+  console.log('Created question doc', dRef.id, 'imageBase64:', !!imageBase64);
   return dRef.id;
 }
 
 export function listenQuestions(
-  onUpdate: (items: Array<Record<string, any>>) => void,
+  onUpdate: (items: Record<string, any>[]) => void,
 ) {
   const q = query(collection(db, "questions"), orderBy("createdAt", "desc"));
-  const unsub = onSnapshot(q, (snap: QuerySnapshot) => {
+  return onSnapshot(q, (snap: QuerySnapshot) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
     onUpdate(data);
   });
-  return unsub;
 }
 
 export async function postAnswer(
@@ -125,43 +204,64 @@ export async function postAnswer(
   text?: string,
   imageUri?: string,
 ) {
+  console.log('postAnswer called for', questionId, 'imageUri:', imageUri);
   let imageBase64: string | null = null;
 
   if (imageUri) {
-    if (imageUri.startsWith("data:")) {
-      if (imageUri.length <= FIRESTORE_LIMIT) {
-        imageBase64 = imageUri;
-      } else {
-        imageBase64 = null;
+    // If data URL, save directly
+    if (imageUri.startsWith('data:')) {
+      if (imageUri.length <= FIRESTORE_LIMIT) imageBase64 = imageUri;
+      else {
+        const compressed = await tryCompressDataUrlWeb(imageUri);
+        if (compressed) imageBase64 = compressed;
       }
     } else {
+      // Non-data URIs: try storage then fallback to dataURL
       try {
-        const base64 = await FileSystem.readAsStringAsync(imageUri, {
-          encoding: "base64",
-        });
-        const dataUrl = `data:image/jpeg;base64,${base64}`;
-        if (dataUrl.length <= FIRESTORE_LIMIT) {
-          imageBase64 = dataUrl;
-        } else {
-          const compressed = await tryCompressNative(imageUri);
-          imageBase64 = compressed;
+        if (!auth.currentUser) {
+          await signInAnonymously(auth).catch(() => {});
         }
-      } catch (e) {
-        imageBase64 = null;
-      }
+        const uid = auth.currentUser?.uid ?? 'anon';
+        const name = makeStorageName('jpg');
 
-      // fallback: try fetch->blob->FileReader
-      if (!imageBase64) {
+        const res = await fetch(imageUri);
+        const blob = await res.blob();
+        const sref = storageRef(storage, `questions/${questionId}/answers/${uid}-${name}`);
+        await uploadBytes(sref, blob as any);
+        imageBase64 = await getDownloadURL(sref);
+        console.log('Stored storage download URL into imageBase64 for answer (blob)');
+      } catch (storageErr) {
+        console.warn('Storage upload failed for answer, falling back to data URL:', storageErr);
         try {
-          const res = await fetch(imageUri);
-          const blob = await res.blob();
-          const dataUrl = await blobToDataUrl(blob);
+          const res2 = await fetch(imageUri);
+          const blob2 = await res2.blob();
+          const dataUrl = await blobToDataUrl(blob2);
           if (dataUrl.length <= FIRESTORE_LIMIT) imageBase64 = dataUrl;
-        } catch (err) {
-          // ignore
+          else {
+            const compressed = await tryCompressDataUrlWeb(dataUrl);
+            if (compressed) imageBase64 = compressed;
+          }
+        } catch (e) {
+          console.warn('fetch->blob->dataUrl failed for answer, trying FileSystem fallback', e);
+          try {
+            const b64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' });
+            const dataUrl = `data:image/jpeg;base64,${b64}`;
+            if (dataUrl.length <= FIRESTORE_LIMIT) imageBase64 = dataUrl;
+            else {
+              const compressed = await tryCompressNative(imageUri);
+              if (compressed) imageBase64 = compressed;
+            }
+          } catch (e2) {
+            console.warn('FileSystem fallback failed for answer', e2);
+          }
         }
       }
     }
+  }
+
+  if (!imageBase64 && imageUri) {
+    console.warn('All attempts failed for answer — saving original imageUri into imageBase64 as fallback');
+    imageBase64 = imageUri;
   }
 
   const ansRef = await addDoc(
@@ -173,32 +273,32 @@ export async function postAnswer(
       createdAt: serverTimestamp(),
     },
   );
+  console.log('Created answer doc', ansRef.id, 'imageBase64:', !!imageBase64);
   return ansRef.id;
 }
 
 export function listenAnswers(
   questionId: string,
-  onUpdate: (items: Array<Record<string, any>>) => void,
+  onUpdate: (items: Record<string, any>[]) => void,
 ) {
   const q = query(
     collection(db, "questions", questionId, "answers"),
     orderBy("createdAt", "asc"),
   );
-  const unsub = onSnapshot(q, (snap: QuerySnapshot) => {
+  return onSnapshot(q, (snap: QuerySnapshot) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
     onUpdate(data);
   });
-  return unsub;
 }
 
 export async function likeQuestion(questionId: string) {
   const qDoc = docRef(db, "questions", questionId);
   try {
     await updateDoc(qDoc, { likes: increment(1) });
-  } catch (e) {
+  } catch {
     try {
       await setDoc(qDoc, { likes: 1 }, { merge: true });
-    } catch (err) {
+    } catch {
       // ignore
     }
   }
