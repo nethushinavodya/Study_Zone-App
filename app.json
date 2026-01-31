@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Study-Zone",
-    "slug": "Study-Zone",
+    "slug": "study-zone",
+    "owner": "nethushi",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -23,7 +24,12 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/icon.png"
+    },
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     },
     "plugins": [
       "expo-router",
@@ -38,7 +44,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,21 +1,27 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
+import { Colors } from "../constants/theme";
+import { useColorScheme } from "./use-color-scheme";
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+type ThemeProps = { light?: string; dark?: string } | undefined;
 
 export function useThemeColor(
-  props: { light?: string; dark?: string },
-  colorName: keyof typeof Colors.light & keyof typeof Colors.dark
+  props: ThemeProps,
+  colorName: keyof typeof Colors.light | string,
 ) {
-  const theme = useColorScheme() ?? 'light';
-  const colorFromProps = props[theme];
+  const theme = useColorScheme() ?? "light";
 
-  if (colorFromProps) {
-    return colorFromProps;
-  } else {
-    return Colors[theme][colorName];
+  // if specific light/dark override provided, use it
+  if (props) {
+    const override = theme === "dark" ? props.dark : props.light;
+    if (override) return override;
   }
+
+  // fallback to Colors map when colorName matches
+  if ((Colors as any)[theme] && (Colors as any)[theme][colorName]) {
+    return (Colors as any)[theme][colorName];
+  }
+
+  // last resort
+  return theme === "dark" ? Colors.dark.text : Colors.light.text;
 }
+
+export default useThemeColor;
