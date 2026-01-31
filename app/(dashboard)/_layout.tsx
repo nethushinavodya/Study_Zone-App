@@ -1,21 +1,51 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Tabs, useRouter, useSegments } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AddQuestionModal from "../../components/ui/AddQuestionModal";
 import { postQuestion } from "../../service/questions";
+import { auth } from "../../service/firebase";
+import { getIdTokenResult } from "firebase/auth";
 
 const ACTIVE_COLOR = "#16A34A";
 
 export default function DashboardLayout() {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const segments = useSegments() as string[];
   const showFab = segments.includes("qna");
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // place FAB higher inside the page, above the tab bar
   const fabBottom = (insets.bottom || 16) + 88;
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const tokenResult = await getIdTokenResult(user);
+          const adminClaim = !!(tokenResult.claims && (tokenResult.claims as any).admin);
+          setIsAdmin(adminClaim);
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminStatus();
+
+    // Re-check when auth state changes
+    const unsubscribe = auth.onAuthStateChanged(() => {
+      checkAdminStatus();
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleSubmit = async (payload: {
     question: string;
@@ -74,6 +104,16 @@ export default function DashboardLayout() {
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="person" color={color} size={size} />
             ),
+          }}
+        />
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: "Admin",
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="admin-panel-settings" color={color} size={size} />
+            ),
+            href: isAdmin ? "/admin" : null, // Only show if user is admin
           }}
         />
       </Tabs>
