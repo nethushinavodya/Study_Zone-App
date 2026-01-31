@@ -1,45 +1,89 @@
-import {
-    collection,
-    deleteDoc,
-    doc,
-    getDocs,
-    onSnapshot,
-    QuerySnapshot,
-    setDoc,
-} from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "./firebase";
 
-export async function toggleBookmark(paperId: string) {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error("Not authenticated");
-  const docRef = doc(db, "users", uid, "bookmarks", paperId);
-  // check existence
-  const colRef = collection(db, "users", uid, "bookmarks");
-  // Try to get the doc
-  const snap = await getDocs(colRef);
-  const exists = snap.docs.some((d) => d.id === paperId);
-  if (exists) {
-    await deleteDoc(docRef);
-    return false;
-  }
-  await setDoc(docRef, { paperId, createdAt: new Date() });
-  return true;
+export interface PaperMetadata {
+  title: string;
+  grade: string;
+  province: string;
+  term: string;
+  examType: string; // 'AL' or 'OL'
+  textbook: string;
+  subject: string;
+  medium: string;
 }
 
-export async function getBookmarks(): Promise<string[]> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return [];
-  const colRef = collection(db, "users", uid, "bookmarks");
-  const snap = await getDocs(colRef);
-  return snap.docs.map((d) => d.id);
-}
+export async function uploadPaperFile(
+  metadata: PaperMetadata,
+  driveUrl: string
+) {
 
-export function listenBookmarks(onUpdate: (ids: string[]) => void) {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return () => {};
-  const colRef = collection(db, "users", uid, "bookmarks");
-  const unsub = onSnapshot(colRef, (snap: QuerySnapshot) => {
-    onUpdate(snap.docs.map((d) => d.id));
+  const docRef = await addDoc(collection(db, "papers"), {
+    title: metadata.title,
+    grade: metadata.grade,
+    province: metadata.province,
+    term: metadata.term,
+    examType: metadata.examType,
+    textbook: metadata.textbook,
+    subject: metadata.subject,
+    medium: metadata.medium,
+    url: driveUrl,
+    createdAt: serverTimestamp(),
+    authorId: auth.currentUser?.uid ?? null,
   });
-  return unsub;
+
+  return { id: docRef.id, url: driveUrl };
 }
+
+export interface Paper {
+  id: string;
+  title: string;
+  grade: string;
+  province: string;
+  term: string;
+  examType: string;
+  textbook: string;
+  subject: string;
+  medium: string;
+  url: string;
+  createdAt: any;
+  authorId: string | null;
+}
+
+export async function getAllPapers(): Promise<Paper[]> {
+  const { getDocs, query, orderBy } = await import("firebase/firestore");
+  const papersCollection = collection(db, "papers");
+  const q = query(papersCollection, orderBy("createdAt", "desc"));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as Paper));
+}
+
+// Textbook interface and functions
+export interface Textbook {
+  id: string;
+  title: string;
+  subject: string;
+  grade: string;
+  medium: string;
+  description?: string;
+  url: string;
+  coverColor?: string;
+  createdAt: any;
+  authorId: string | null;
+}
+
+export async function getAllTextbooks(): Promise<Textbook[]> {
+  const { getDocs, query, orderBy } = await import("firebase/firestore");
+  const textbooksCollection = collection(db, "textbooks");
+  const q = query(textbooksCollection, orderBy("createdAt", "desc"));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as Textbook));
+}
+
