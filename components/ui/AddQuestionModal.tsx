@@ -50,25 +50,6 @@ export default function AddQuestionModal({
     reader.readAsDataURL(file);
   };
 
-  const pickImageNative = async () => {
-    if (!ImagePicker) return;
-    try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") return;
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
-        quality: 0.7,
-        base64: false,
-      });
-      // support both legacy result and new `assets` shape
-      const uri = (result as any).uri ?? (result as any).assets?.[0]?.uri;
-      if (uri) setImageUri(uri);
-    } catch (err) {
-      // ignore
-    }
-  };
-
   const takePhotoNative = async () => {
     if (!ImagePicker) return;
     try {
