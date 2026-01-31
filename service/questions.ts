@@ -14,7 +14,7 @@ import {
   updateDoc,
   runTransaction,
   getDoc,
-  getDocs,
+   getDocs,
 } from "firebase/firestore";
 import { auth, db, storage } from "./firebase";
 import { ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
