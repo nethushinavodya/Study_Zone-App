@@ -1,6 +1,6 @@
 import { FontAwesome } from "@expo/vector-icons";
 import React from "react";
-import { FlatList, Linking, Pressable, Text, View, Platform, Alert } from "react-native";
+import { FlatList, Linking, Pressable, Text, View, Platform, Alert, Modal, ScrollView } from "react-native";
 import { onSnapshot, collection, query, orderBy, doc, setDoc, deleteDoc, getDocs, where } from "firebase/firestore";
 import { db , auth} from "../../service/firebase";
 import { Picker } from "@react-native-picker/picker";
@@ -9,6 +9,7 @@ export default function Papers() {
   const [papers, setPapers] = React.useState<any[]>([]);
   const [filteredPapers, setFilteredPapers] = React.useState<any[]>([]);
   const [bookmarkedPapers, setBookmarkedPapers] = React.useState<string[]>([]);
+  const [sidebarVisible, setSidebarVisible] = React.useState(false);
 
   // Filter states
   const [filterExamType, setFilterExamType] = React.useState('');
@@ -122,171 +123,71 @@ export default function Papers() {
 
 
   return (
-    <View className="flex-1 px-6 py-8 bg-green-50">
-      <Text className="text-3xl font-bold text-green-600 mb-6">Papers</Text>
-
-      {/* Filter Bar */}
-      <View className="bg-white rounded-2xl p-4 mb-4">
-        <View className="flex-row justify-between items-center mb-3">
-          <Text className="text-lg font-semibold text-gray-800">🔍 Filter Papers</Text>
-          <Pressable onPress={clearFilters} className="bg-gray-200 px-3 py-1 rounded-full">
-            <Text className="text-xs text-gray-700">Clear All</Text>
-          </Pressable>
-        </View>
-
-        {/* Two Column Layout */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {/* Exam Type Filter */}
-          <View style={{ flex: 1, minWidth: '45%', marginBottom: 8 }}>
-            <Text className="text-xs text-gray-600 mb-1">Exam Type</Text>
-            <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-              <Picker
-                selectedValue={filterExamType}
-                onValueChange={(value: string) => setFilterExamType(value)}
-                style={{ height: Platform.OS === 'ios' ? 150 : 50 }}
-              >
-                <Picker.Item label="All Types" value="" />
-                <Picker.Item label="A/L" value="AL" />
-                <Picker.Item label="O/L" value="OL" />
-              </Picker>
-            </View>
-          </View>
-
-          {/* Grade Filter */}
-          <View style={{ flex: 1, minWidth: '45%', marginBottom: 8 }}>
-            <Text className="text-xs text-gray-600 mb-1">Grade</Text>
-            <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-              <Picker
-                selectedValue={filterGrade}
-                onValueChange={(value: string) => setFilterGrade(value)}
-                style={{ height: Platform.OS === 'ios' ? 150 : 50 }}
-              >
-                <Picker.Item label="All Grades" value="" />
-                <Picker.Item label="Grade 6" value="6" />
-                <Picker.Item label="Grade 7" value="7" />
-                <Picker.Item label="Grade 8" value="8" />
-                <Picker.Item label="Grade 9" value="9" />
-                <Picker.Item label="Grade 10" value="10" />
-                <Picker.Item label="Grade 11" value="11" />
-                <Picker.Item label="Grade 12" value="12" />
-                <Picker.Item label="Grade 13" value="13" />
-              </Picker>
-            </View>
-          </View>
-
-          {/* Province Filter */}
-          <View style={{ flex: 1, minWidth: '45%', marginBottom: 8 }}>
-            <Text className="text-xs text-gray-600 mb-1">Province</Text>
-            <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-              <Picker
-                selectedValue={filterProvince}
-                onValueChange={(value: string) => setFilterProvince(value)}
-                style={{ height: Platform.OS === 'ios' ? 150 : 50 }}
-              >
-                <Picker.Item label="All Provinces" value="" />
-                <Picker.Item label="Western Province" value="Western" />
-                <Picker.Item label="Central Province" value="Central" />
-                <Picker.Item label="Southern Province" value="Southern" />
-                <Picker.Item label="Northern Province" value="Northern" />
-                <Picker.Item label="Eastern Province" value="Eastern" />
-                <Picker.Item label="North Western Province" value="North Western" />
-                <Picker.Item label="North Central Province" value="North Central" />
-                <Picker.Item label="Uva Province" value="Uva" />
-                <Picker.Item label="Sabaragamuwa Province" value="Sabaragamuwa" />
-              </Picker>
-            </View>
-          </View>
-
-          {/* Term Filter */}
-          <View style={{ flex: 1, minWidth: '45%', marginBottom: 8 }}>
-            <Text className="text-xs text-gray-600 mb-1">Term</Text>
-            <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-              <Picker
-                selectedValue={filterTerm}
-                onValueChange={(value: string) => setFilterTerm(value)}
-                style={{ height: Platform.OS === 'ios' ? 150 : 50 }}
-              >
-                <Picker.Item label="All Terms" value="" />
-                <Picker.Item label="Term 1" value="Term 1" />
-                <Picker.Item label="Term 2" value="Term 2" />
-                <Picker.Item label="Term 3" value="Term 3" />
-                <Picker.Item label="Annual Exam" value="Annual" />
-              </Picker>
-            </View>
-          </View>
-
-          {/* Subject Filter */}
-          <View style={{ flex: 1, minWidth: '45%', marginBottom: 8 }}>
-            <Text className="text-xs text-gray-600 mb-1">Subject</Text>
-            <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-              <Picker
-                selectedValue={filterSubject}
-                onValueChange={(value: string) => setFilterSubject(value)}
-                style={{ height: Platform.OS === 'ios' ? 150 : 50 }}
-              >
-                <Picker.Item label="All Subjects" value="" />
-                <Picker.Item label="Mathematics" value="Mathematics" />
-                <Picker.Item label="Science" value="Science" />
-                <Picker.Item label="Sinhala" value="Sinhala" />
-                <Picker.Item label="English" value="English" />
-                <Picker.Item label="Tamil" value="Tamil" />
-                <Picker.Item label="History" value="History" />
-                <Picker.Item label="Geography" value="Geography" />
-                <Picker.Item label="Buddhism" value="Buddhism" />
-                <Picker.Item label="Christianity" value="Christianity" />
-                <Picker.Item label="Islam" value="Islam" />
-                <Picker.Item label="Hinduism" value="Hinduism" />
-                <Picker.Item label="ICT" value="ICT" />
-                <Picker.Item label="Commerce" value="Commerce" />
-                <Picker.Item label="Business Studies" value="Business Studies" />
-                <Picker.Item label="Accounting" value="Accounting" />
-                <Picker.Item label="Economics" value="Economics" />
-                <Picker.Item label="Physics" value="Physics" />
-                <Picker.Item label="Chemistry" value="Chemistry" />
-                <Picker.Item label="Biology" value="Biology" />
-                <Picker.Item label="Combined Mathematics" value="Combined Mathematics" />
-                <Picker.Item label="Art" value="Art" />
-                <Picker.Item label="Dancing" value="Dancing" />
-                <Picker.Item label="Music" value="Music" />
-                <Picker.Item label="Drama" value="Drama" />
-                <Picker.Item label="Agriculture" value="Agriculture" />
-                <Picker.Item label="Health Science" value="Health Science" />
-                <Picker.Item label="Home Economics" value="Home Economics" />
-                <Picker.Item label="Engineering Technology" value="Engineering Technology" />
-                <Picker.Item label="Other" value="Other" />
-              </Picker>
-            </View>
-          </View>
-
-          {/* Medium Filter */}
-          <View style={{ flex: 1, minWidth: '45%', marginBottom: 8 }}>
-            <Text className="text-xs text-gray-600 mb-1">Medium</Text>
-            <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-              <Picker
-                selectedValue={filterMedium}
-                onValueChange={(value: string) => setFilterMedium(value)}
-                style={{ height: Platform.OS === 'ios' ? 150 : 50 }}
-              >
-                <Picker.Item label="All Mediums" value="" />
-                <Picker.Item label="Sinhala" value="Sinhala" />
-                <Picker.Item label="English" value="English" />
-                <Picker.Item label="Tamil" value="Tamil" />
-              </Picker>
-            </View>
-          </View>
-        </View>
-
-        {/* Active Filters Count */}
-        {(filterExamType || filterGrade || filterProvince || filterTerm || filterSubject || filterMedium) && (
-          <Text className="text-xs text-green-600 mt-2">
-            Showing {filteredPapers.length} of {papers.length} papers
-          </Text>
-        )}
+    <View style={{ flex: 1, backgroundColor: '#f0fdf4' }}>
+      {/* Header with Filter Button */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: '#16A34A' }}>📄 Papers</Text>
+        <Pressable
+          onPress={() => setSidebarVisible(true)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#dcfce7',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 12,
+            gap: 6,
+          }}
+        >
+          <FontAwesome name="filter" size={16} color="#16A34A" />
+          <Text style={{ fontSize: 14, color: '#16A34A', fontWeight: '600' }}>Filter</Text>
+        </Pressable>
       </View>
 
+      {/* Active Filter Badges */}
+      {(filterExamType || filterGrade || filterProvince || filterTerm || filterSubject || filterMedium) && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 24, marginBottom: 16 }}>
+          <Text style={{ fontSize: 12, color: '#16A34A', fontWeight: '600' }}>
+            Showing {filteredPapers.length} of {papers.length} papers
+          </Text>
+          {filterExamType && (
+            <View style={{ backgroundColor: '#16A34A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '600' }}>{filterExamType}</Text>
+            </View>
+          )}
+          {filterGrade && (
+            <View style={{ backgroundColor: '#16A34A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '600' }}>Grade {filterGrade}</Text>
+            </View>
+          )}
+          {filterSubject && (
+            <View style={{ backgroundColor: '#16A34A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '600' }}>{filterSubject}</Text>
+            </View>
+          )}
+          {filterMedium && (
+            <View style={{ backgroundColor: '#16A34A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '600' }}>{filterMedium}</Text>
+            </View>
+          )}
+          {filterProvince && (
+            <View style={{ backgroundColor: '#16A34A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '600' }}>{filterProvince}</Text>
+            </View>
+          )}
+          {filterTerm && (
+            <View style={{ backgroundColor: '#16A34A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '600' }}>{filterTerm}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Papers List */}
       <FlatList
         data={filteredPapers}
         keyExtractor={(i) => i.id}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20 }}
         renderItem={({ item }) => (
           <View style={{
             backgroundColor: '#ffffff',
@@ -422,6 +323,202 @@ export default function Papers() {
           </View>
         )}
       />
+
+      {/* Sidebar Filter Modal */}
+      <Modal
+        visible={sidebarVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setSidebarVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+          onPress={() => setSidebarVisible(false)}
+        >
+          <View
+            style={{
+              backgroundColor: '#ffffff',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingTop: 20,
+              paddingHorizontal: 20,
+              paddingBottom: 40,
+              maxHeight: '85%',
+              height: '85%'
+            }}
+          >
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16,
+              paddingBottom: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: '#e5e7eb'
+            }}>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: '#1f2937' }}>🔍 Filter Papers</Text>
+              <Pressable onPress={() => setSidebarVisible(false)}>
+                <FontAwesome name="times" size={24} color="#6b7280" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={true}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              {/* Grade Filter */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280', marginBottom: 8 }}>Grade</Text>
+                <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+                  <Picker
+                    selectedValue={filterGrade}
+                    onValueChange={(value: string) => setFilterGrade(value)}
+                    style={{ height: Platform.OS === 'ios' ? 120 : 50 }}
+                  >
+                    <Picker.Item label="All Grades" value="" />
+                    <Picker.Item label="Grade 6" value="6" />
+                    <Picker.Item label="Grade 7" value="7" />
+                    <Picker.Item label="Grade 8" value="8" />
+                    <Picker.Item label="Grade 9" value="9" />
+                    <Picker.Item label="Grade 10" value="10" />
+                    <Picker.Item label="Grade 11" value="11" />
+                    <Picker.Item label="Grade 12" value="12" />
+                    <Picker.Item label="Grade 13" value="13" />
+                  </Picker>
+                </View>
+              </View>
+
+              {/* Subject Filter */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280', marginBottom: 8 }}>Subject</Text>
+                <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+                  <Picker
+                    selectedValue={filterSubject}
+                    onValueChange={(value: string) => setFilterSubject(value)}
+                    style={{ height: Platform.OS === 'ios' ? 120 : 50 }}
+                  >
+                    <Picker.Item label="All Subjects" value="" />
+                    <Picker.Item label="Mathematics" value="Mathematics" />
+                    <Picker.Item label="Science" value="Science" />
+                    <Picker.Item label="Physics" value="Physics" />
+                    <Picker.Item label="Chemistry" value="Chemistry" />
+                    <Picker.Item label="Biology" value="Biology" />
+                    <Picker.Item label="English" value="English" />
+                    <Picker.Item label="Sinhala" value="Sinhala" />
+                    <Picker.Item label="Tamil" value="Tamil" />
+                    <Picker.Item label="History" value="History" />
+                    <Picker.Item label="Geography" value="Geography" />
+                    <Picker.Item label="ICT" value="ICT" />
+                    <Picker.Item label="Combined Mathematics" value="Combined Mathematics" />
+                  </Picker>
+                </View>
+              </View>
+
+              {/* Medium Filter */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280', marginBottom: 8 }}>Medium</Text>
+                <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+                  <Picker
+                    selectedValue={filterMedium}
+                    onValueChange={(value: string) => setFilterMedium(value)}
+                    style={{ height: Platform.OS === 'ios' ? 120 : 50 }}
+                  >
+                    <Picker.Item label="All Mediums" value="" />
+                    <Picker.Item label="Sinhala" value="Sinhala" />
+                    <Picker.Item label="English" value="English" />
+                    <Picker.Item label="Tamil" value="Tamil" />
+                  </Picker>
+                </View>
+              </View>
+
+              {/* Exam Type Filter */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280', marginBottom: 8 }}>Exam Type</Text>
+                <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+                  <Picker
+                    selectedValue={filterExamType}
+                    onValueChange={(value: string) => setFilterExamType(value)}
+                    style={{ height: Platform.OS === 'ios' ? 120 : 50 }}
+                  >
+                    <Picker.Item label="All Types" value="" />
+                    <Picker.Item label="A/L" value="AL" />
+                    <Picker.Item label="O/L" value="OL" />
+                  </Picker>
+                </View>
+              </View>
+
+              {/* Province Filter */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280', marginBottom: 8 }}>Province</Text>
+                <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+                  <Picker
+                    selectedValue={filterProvince}
+                    onValueChange={(value: string) => setFilterProvince(value)}
+                    style={{ height: Platform.OS === 'ios' ? 120 : 50 }}
+                  >
+                    <Picker.Item label="All Provinces" value="" />
+                    <Picker.Item label="Western Province" value="Western" />
+                    <Picker.Item label="Central Province" value="Central" />
+                    <Picker.Item label="Southern Province" value="Southern" />
+                    <Picker.Item label="Northern Province" value="Northern" />
+                    <Picker.Item label="Eastern Province" value="Eastern" />
+                    <Picker.Item label="North Western Province" value="North Western" />
+                    <Picker.Item label="North Central Province" value="North Central" />
+                    <Picker.Item label="Uva Province" value="Uva" />
+                    <Picker.Item label="Sabaragamuwa Province" value="Sabaragamuwa" />
+                  </Picker>
+                </View>
+              </View>
+
+              {/* Term Filter */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280', marginBottom: 8 }}>Term</Text>
+                <View style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+                  <Picker
+                    selectedValue={filterTerm}
+                    onValueChange={(value: string) => setFilterTerm(value)}
+                    style={{ height: Platform.OS === 'ios' ? 120 : 50 }}
+                  >
+                    <Picker.Item label="All Terms" value="" />
+                    <Picker.Item label="Term 1" value="Term 1" />
+                    <Picker.Item label="Term 2" value="Term 2" />
+                    <Picker.Item label="Term 3" value="Term 3" />
+                    <Picker.Item label="Annual Exam" value="Annual" />
+                  </Picker>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#e5e7eb' }}>
+              <Pressable
+                onPress={clearFilters}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#f3f4f6',
+                  padding: 14,
+                  borderRadius: 12,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280' }}>Clear All</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setSidebarVisible(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#16A34A',
+                  padding: 14,
+                  borderRadius: 12,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#ffffff' }}>Apply Filters</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
