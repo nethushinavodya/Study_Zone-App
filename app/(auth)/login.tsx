@@ -149,7 +149,7 @@ const Login = () => {
                 Login here
               </Text>
               <Text className="text-2xl font-bold text-gray-900 mb-2">
-                Welcome back you've
+                Welcome back you have
               </Text>
               <Text className="text-2xl font-bold text-gray-900">
                 been missed!
