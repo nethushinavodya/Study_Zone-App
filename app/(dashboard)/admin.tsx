@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, TextInput, Pressable, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, Platform, ScrollView } from 'react-native';
 import { uploadPaperFile, getAllPapers, Paper } from '../../service/paperService';
 import { auth } from '../../service/firebase';
 import { signInWithEmailAndPassword, signOut, getIdTokenResult } from 'firebase/auth';
+import Toast from 'react-native-toast-message';
 
-// We'll check the custom claim `admin` on the user's ID token. See instructions below to set the custom claim in Firebase.
 
 export default function AdminPage() {
   const [email, setEmail] = React.useState('');
@@ -16,7 +16,6 @@ export default function AdminPage() {
   const [loading, setLoading] = React.useState(false);
   const [driveUrl, setDriveUrl] = React.useState('');
 
-  // Additional metadata fields
   const [grade, setGrade] = React.useState('');
   const [province, setProvince] = React.useState('');
   const [term, setTerm] = React.useState('');
@@ -53,7 +52,6 @@ export default function AdminPage() {
     }
   }, [isAdmin]);
 
-  // If not running on web, show a friendly message and don't run admin flows.
   if (Platform.OS !== 'web') {
     return (
       <View style={{ padding: 24 }}>
@@ -65,12 +63,23 @@ export default function AdminPage() {
   }
 
   const tryLogin = async () => {
-    if (!email || !password) return Alert.alert('Provide email and password');
+    if (!email || !password) {
+      Toast.show({
+        type: "info",
+        text1: "Missing Information",
+        text2: "Please provide email and password",
+      });
+      return;
+    }
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       const u = cred.user;
       if (!u) {
-        Alert.alert('Login failed', 'No user returned');
+        Toast.show({
+          type: "error",
+          text1: "Login Failed",
+          text2: "No user returned",
+        });
         return;
       }
       try {
@@ -80,7 +89,6 @@ export default function AdminPage() {
         const isAdminClaim = !!(token?.claims && (token.claims as any).admin);
         if (!isAdminClaim) {
           setStatusMessage('Signed in but admin role not present. Run the admin-claim script and then click Refresh claims.');
-          // keep user signed in so they can refresh token without retyping credentials
           return;
         }
       } catch {
@@ -90,7 +98,11 @@ export default function AdminPage() {
       setEmail(''); setPassword('');
     } catch (e: any) {
       console.error('Login failed', e);
-      Alert.alert('Login failed', e?.message || 'Check credentials');
+      Toast.show({
+        type: "error",
+        text1: "Login Failed",
+        text2: e?.message || "Check credentials",
+      });
     }
   };
 
@@ -106,7 +118,11 @@ export default function AdminPage() {
       setPapers(fetchedPapers);
     } catch (err) {
       console.error('Failed to load papers', err);
-      Alert.alert('Error', 'Failed to load papers');
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to load papers",
+      });
     }
     setLoadingPapers(false);
   };
@@ -127,7 +143,11 @@ export default function AdminPage() {
         },
         driveUrl || ''
       );
-      Alert.alert('Uploaded', `Paper saved: ${res.id}`);
+      Toast.show({
+        type: "success",
+        text1: "Upload Successful",
+        text2: `Paper saved: ${res.id}`,
+      });
       setTitle('');
       setDriveUrl('');
       setGrade('');
@@ -137,10 +157,14 @@ export default function AdminPage() {
       setTextbook('');
       setSubject('');
       setMedium('');
-      loadPapers(); // Reload papers list
+      loadPapers();
     } catch (err) {
       console.error('Upload failed', err);
-      Alert.alert('Upload failed');
+      Toast.show({
+        type: "error",
+        text1: "Upload Failed",
+        text2: "Failed to upload paper. Please try again.",
+      });
     }
     setLoading(false);
   };
