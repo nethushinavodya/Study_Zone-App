@@ -14,17 +14,14 @@ import {
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Picker } from "@react-native-picker/picker";
-import AddQuestionModal from "../../components/ui/AddQuestionModal";
 import {
   listenQuestions,
-  postQuestion,
 } from "../../service/questions";
 import { onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../service/firebase";
 
 const Home = () => {
   const router = useRouter();
-  const [modalOpen, setModalOpen] = useState(false);
   const [questions, setQuestions] = useState<Array<any>>([]);
   const [papers, setPapers] = useState<Array<any>>([]);
   const [textbooks, setTextbooks] = useState<Array<any>>([]);
@@ -116,232 +113,232 @@ const Home = () => {
 
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView style={styles.container}>
-        {/* Hero Section */}
-        <View style={styles.heroSection}>
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Welcome to Study Zone 📚</Text>
-            <Text style={styles.heroSubtitle}>Your learning companion for success</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <FontAwesome name="file-pdf-o" size={24} color="#16A34A" />
-              <Text style={styles.statNumber}>{papers.length}</Text>
-              <Text style={styles.statLabel}>Papers</Text>
+      <View style={{ flex: 1 }}>
+        <ScrollView style={styles.container}>
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroContent}>
+              <Text style={styles.heroTitle}>Welcome to Study Zone 📚</Text>
+              <Text style={styles.heroSubtitle}>Your learning companion for success</Text>
             </View>
-            <View style={styles.statCard}>
-              <FontAwesome name="book" size={24} color="#2563eb" />
-              <Text style={styles.statNumber}>{textbooks.length}</Text>
-              <Text style={styles.statLabel}>Textbooks</Text>
-            </View>
-            <View style={styles.statCard}>
-              <FontAwesome name="question-circle" size={24} color="#dc2626" />
-              <Text style={styles.statNumber}>{questions.length}</Text>
-              <Text style={styles.statLabel}>Q&A</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Textbooks Section with 3 Columns */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>📖 Textbooks</Text>
-            <Pressable onPress={() => setSidebarVisible(true)} style={styles.filterButton}>
-              <FontAwesome name="filter" size={16} color="#16A34A" />
-              <Text style={styles.filterButtonText}>Filter</Text>
-            </Pressable>
-          </View>
-
-          {/* Filter badges */}
-          {(filterGrade || filterSubject || filterMedium) && (
-            <View style={styles.activeFilters}>
-              <Text style={styles.activeFiltersText}>
-                Showing {filteredTextbooks.length} of {textbooks.length} textbooks
-              </Text>
-              {filterGrade && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>Grade {filterGrade}</Text></View>}
-              {filterSubject && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{filterSubject}</Text></View>}
-              {filterMedium && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{filterMedium}</Text></View>}
-            </View>
-          )}
-
-          <View style={styles.textbooksGrid}>
-            {filteredTextbooks.length > 0 ? (
-              filteredTextbooks.map((book, index) => {
-                if (index % 3 === 0) {
-                  const row = filteredTextbooks.slice(index, index + 3);
-                  return (
-                    <View key={`row-${index}`} style={styles.textbooksRow}>
-                      {row.map((item) => (
-                        <Pressable
-                          key={item.id}
-                          style={[styles.textbookGridCard, { backgroundColor: getColorForSubject(item.subject) }]}
-                          onPress={() => item.url && Linking.openURL(item.url)}
-                        >
-                          <View style={styles.textbookIcon}>
-                            <FontAwesome name="book" size={28} color="#1f2937" />
-                          </View>
-                          <Text style={styles.textbookGridTitle} numberOfLines={2}>{item.title}</Text>
-                          <View style={styles.textbookBadge}>
-                            <Text style={styles.textbookBadgeText}>Grade {item.grade}</Text>
-                          </View>
-                        </Pressable>
-                      ))}
-                    </View>
-                  );
-                }
-                return null;
-              })
-            ) : (
-              <View style={styles.emptyTextbooksContainer}>
-                <FontAwesome name="book" size={48} color="#d1d5db" />
-                <Text style={styles.emptyTextbooksText}>No textbooks found</Text>
-                <Text style={styles.emptyTextbooksSubtext}>Try adjusting your filters</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <FontAwesome name="file-pdf-o" size={24} color="#16A34A" />
+                <Text style={styles.statNumber}>{papers.length}</Text>
+                <Text style={styles.statLabel}>Papers</Text>
               </View>
+              <View style={styles.statCard}>
+                <FontAwesome name="book" size={24} color="#2563eb" />
+                <Text style={styles.statNumber}>{textbooks.length}</Text>
+                <Text style={styles.statLabel}>Textbooks</Text>
+              </View>
+              <View style={styles.statCard}>
+                <FontAwesome name="question-circle" size={24} color="#dc2626" />
+                <Text style={styles.statNumber}>{questions.length}</Text>
+                <Text style={styles.statLabel}>Q&A</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Textbooks Section with 3 Columns */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>📖 Textbooks</Text>
+              <Pressable onPress={() => setSidebarVisible(true)} style={styles.filterButton}>
+                <FontAwesome name="filter" size={16} color="#16A34A" />
+                <Text style={styles.filterButtonText}>Filter</Text>
+              </Pressable>
+            </View>
+
+            {/* Filter badges */}
+            {(filterGrade || filterSubject || filterMedium) && (
+                <View style={styles.activeFilters}>
+                  <Text style={styles.activeFiltersText}>
+                    Showing {filteredTextbooks.length} of {textbooks.length} textbooks
+                  </Text>
+                  {filterGrade && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>Grade {filterGrade}</Text></View>}
+                  {filterSubject && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{filterSubject}</Text></View>}
+                  {filterMedium && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{filterMedium}</Text></View>}
+                </View>
             )}
-          </View>
-        </View>
 
-        {/* Recent Papers Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>📄 Recent Papers</Text>
-            <Pressable onPress={() => router.push('/papers')}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </Pressable>
+            <View style={styles.textbooksGrid}>
+              {filteredTextbooks.length > 0 ? (
+                  filteredTextbooks.map((book, index) => {
+                    if (index % 3 === 0) {
+                      const row = filteredTextbooks.slice(index, index + 3);
+                      return (
+                          <View key={`row-${index}`} style={styles.textbooksRow}>
+                            {row.map((item) => (
+                                <Pressable
+                                    key={item.id}
+                                    style={[styles.textbookGridCard, { backgroundColor: getColorForSubject(item.subject) }]}
+                                    onPress={() => item.url && Linking.openURL(item.url)}
+                                >
+                                  <View style={styles.textbookIcon}>
+                                    <FontAwesome name="book" size={28} color="#1f2937" />
+                                  </View>
+                                  <Text style={styles.textbookGridTitle} numberOfLines={2}>{item.title}</Text>
+                                  <View style={styles.textbookBadge}>
+                                    <Text style={styles.textbookBadgeText}>Grade {item.grade}</Text>
+                                  </View>
+                                </Pressable>
+                            ))}
+                          </View>
+                      );
+                    }
+                    return null;
+                  })
+              ) : (
+                  <View style={styles.emptyTextbooksContainer}>
+                    <FontAwesome name="book" size={48} color="#d1d5db" />
+                    <Text style={styles.emptyTextbooksText}>No textbooks found</Text>
+                    <Text style={styles.emptyTextbooksSubtext}>Try adjusting your filters</Text>
+                  </View>
+              )}
+            </View>
           </View>
-          {papers.slice(0, 4).map((paper) => (
-            <View key={paper.id} style={styles.paperCard}>
-              <View style={styles.paperIcon}>
-                <FontAwesome name="file-pdf-o" size={20} color="#16A34A" />
-              </View>
-              <View style={styles.paperContent}>
-                <Text style={styles.paperTitle} numberOfLines={1}>{paper.title}</Text>
-                <View style={styles.paperBadges}>
-                  {paper.examType && (
-                    <View style={styles.miniPaperBadge}>
-                      <Text style={styles.miniPaperBadgeText}>{paper.examType}</Text>
-                    </View>
-                  )}
-                  {paper.grade && (
-                    <View style={styles.miniPaperBadge}>
-                      <Text style={styles.miniPaperBadgeText}>Grade {paper.grade}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              <Pressable
-                onPress={() => Linking.openURL(paper.url)}
-                style={styles.paperViewBtn}
-              >
-                <FontAwesome name="eye" size={16} color="#16A34A" />
+
+          {/* Recent Papers Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>📄 Recent Papers</Text>
+              <Pressable onPress={() => router.push('/papers')}>
+                <Text style={styles.seeAllText}>See All</Text>
               </Pressable>
             </View>
-          ))}
-        </View>
-      </ScrollView>
+            {papers.slice(0, 4).map((paper) => (
+                <View key={paper.id} style={styles.paperCard}>
+                  <View style={styles.paperIcon}>
+                    <FontAwesome name="file-pdf-o" size={20} color="#16A34A" />
+                  </View>
+                  <View style={styles.paperContent}>
+                    <Text style={styles.paperTitle} numberOfLines={1}>{paper.title}</Text>
+                    <View style={styles.paperBadges}>
+                      {paper.examType && (
+                          <View style={styles.miniPaperBadge}>
+                            <Text style={styles.miniPaperBadgeText}>{paper.examType}</Text>
+                          </View>
+                      )}
+                      {paper.grade && (
+                          <View style={styles.miniPaperBadge}>
+                            <Text style={styles.miniPaperBadgeText}>Grade {paper.grade}</Text>
+                          </View>
+                      )}
+                    </View>
+                  </View>
+                  <Pressable
+                      onPress={() => Linking.openURL(paper.url)}
+                      style={styles.paperViewBtn}
+                  >
+                    <FontAwesome name="eye" size={16} color="#16A34A" />
+                  </Pressable>
+                </View>
+            ))}
+          </View>
+        </ScrollView>
 
-      {/* Sidebar Filter Modal */}
-      <Modal
-        visible={sidebarVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setSidebarVisible(false)}
-      >
-        <Pressable
-          style={styles.sidebarOverlay}
-          onPress={() => setSidebarVisible(false)}
+        {/* Sidebar Filter Modal */}
+        <Modal
+            visible={sidebarVisible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setSidebarVisible(false)}
         >
-          <View style={styles.sidebar}>
-            <View style={styles.sidebarHeader}>
-              <Text style={styles.sidebarTitle}>🔍 Filter Textbooks</Text>
-              <Pressable onPress={() => setSidebarVisible(false)}>
-                <FontAwesome name="times" size={24} color="#6b7280" />
-              </Pressable>
+          <Pressable
+              style={styles.sidebarOverlay}
+              onPress={() => setSidebarVisible(false)}
+          >
+            <View style={styles.sidebar}>
+              <View style={styles.sidebarHeader}>
+                <Text style={styles.sidebarTitle}>🔍 Filter Textbooks</Text>
+                <Pressable onPress={() => setSidebarVisible(false)}>
+                  <FontAwesome name="times" size={24} color="#6b7280" />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                  style={styles.sidebarContent}
+                  showsVerticalScrollIndicator={true}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                {/* Grade Filter */}
+                <View style={styles.filterGroup}>
+                  <Text style={styles.filterLabel}>Grade</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                        selectedValue={filterGrade}
+                        onValueChange={(value: string) => setFilterGrade(value)}
+                        style={styles.picker}
+                    >
+                      <Picker.Item label="All Grades" value="" />
+                      <Picker.Item label="Grade 6" value="6" />
+                      <Picker.Item label="Grade 7" value="7" />
+                      <Picker.Item label="Grade 8" value="8" />
+                      <Picker.Item label="Grade 9" value="9" />
+                      <Picker.Item label="Grade 10" value="10" />
+                      <Picker.Item label="Grade 11" value="11" />
+                      <Picker.Item label="Grade 12" value="12" />
+                      <Picker.Item label="Grade 13" value="13" />
+                    </Picker>
+                  </View>
+                </View>
+
+                {/* Subject Filter */}
+                <View style={styles.filterGroup}>
+                  <Text style={styles.filterLabel}>Subject</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                        selectedValue={filterSubject}
+                        onValueChange={(value: string) => setFilterSubject(value)}
+                        style={styles.picker}
+                    >
+                      <Picker.Item label="All Subjects" value="" />
+                      <Picker.Item label="Mathematics" value="Mathematics" />
+                      <Picker.Item label="Science" value="Science" />
+                      <Picker.Item label="Physics" value="Physics" />
+                      <Picker.Item label="Chemistry" value="Chemistry" />
+                      <Picker.Item label="Biology" value="Biology" />
+                      <Picker.Item label="English" value="English" />
+                      <Picker.Item label="Sinhala" value="Sinhala" />
+                      <Picker.Item label="Tamil" value="Tamil" />
+                      <Picker.Item label="History" value="History" />
+                      <Picker.Item label="Geography" value="Geography" />
+                      <Picker.Item label="ICT" value="ICT" />
+                    </Picker>
+                  </View>
+                </View>
+
+                {/* Medium Filter */}
+                <View style={styles.filterGroup}>
+                  <Text style={styles.filterLabel}>Medium</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                        selectedValue={filterMedium}
+                        onValueChange={(value: string) => setFilterMedium(value)}
+                        style={styles.picker}
+                    >
+                      <Picker.Item label="All Mediums" value="" />
+                      <Picker.Item label="Sinhala" value="Sinhala" />
+                      <Picker.Item label="English" value="English" />
+                      <Picker.Item label="Tamil" value="Tamil" />
+                    </Picker>
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.sidebarFooter}>
+                <Pressable onPress={clearFilters} style={styles.clearFiltersBtn}>
+                  <Text style={styles.clearFiltersBtnText}>Clear All Filters</Text>
+                </Pressable>
+                <Pressable onPress={() => setSidebarVisible(false)} style={styles.applyFiltersBtn}>
+                  <Text style={styles.applyFiltersBtnText}>Apply Filters</Text>
+                </Pressable>
+              </View>
             </View>
-
-            <ScrollView
-              style={styles.sidebarContent}
-              showsVerticalScrollIndicator={true}
-              contentContainerStyle={{ paddingBottom: 20 }}
-            >
-              {/* Grade Filter */}
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Grade</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={filterGrade}
-                    onValueChange={(value: string) => setFilterGrade(value)}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="All Grades" value="" />
-                    <Picker.Item label="Grade 6" value="6" />
-                    <Picker.Item label="Grade 7" value="7" />
-                    <Picker.Item label="Grade 8" value="8" />
-                    <Picker.Item label="Grade 9" value="9" />
-                    <Picker.Item label="Grade 10" value="10" />
-                    <Picker.Item label="Grade 11" value="11" />
-                    <Picker.Item label="Grade 12" value="12" />
-                    <Picker.Item label="Grade 13" value="13" />
-                  </Picker>
-                </View>
-              </View>
-
-              {/* Subject Filter */}
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Subject</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={filterSubject}
-                    onValueChange={(value: string) => setFilterSubject(value)}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="All Subjects" value="" />
-                    <Picker.Item label="Mathematics" value="Mathematics" />
-                    <Picker.Item label="Science" value="Science" />
-                    <Picker.Item label="Physics" value="Physics" />
-                    <Picker.Item label="Chemistry" value="Chemistry" />
-                    <Picker.Item label="Biology" value="Biology" />
-                    <Picker.Item label="English" value="English" />
-                    <Picker.Item label="Sinhala" value="Sinhala" />
-                    <Picker.Item label="Tamil" value="Tamil" />
-                    <Picker.Item label="History" value="History" />
-                    <Picker.Item label="Geography" value="Geography" />
-                    <Picker.Item label="ICT" value="ICT" />
-                  </Picker>
-                </View>
-              </View>
-
-              {/* Medium Filter */}
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Medium</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={filterMedium}
-                    onValueChange={(value: string) => setFilterMedium(value)}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="All Mediums" value="" />
-                    <Picker.Item label="Sinhala" value="Sinhala" />
-                    <Picker.Item label="English" value="English" />
-                    <Picker.Item label="Tamil" value="Tamil" />
-                  </Picker>
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.sidebarFooter}>
-              <Pressable onPress={clearFilters} style={styles.clearFiltersBtn}>
-                <Text style={styles.clearFiltersBtnText}>Clear All Filters</Text>
-              </Pressable>
-              <Pressable onPress={() => setSidebarVisible(false)} style={styles.applyFiltersBtn}>
-                <Text style={styles.applyFiltersBtnText}>Apply Filters</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-    </View>
+          </Pressable>
+        </Modal>
+      </View>
   );
 };
 
@@ -752,4 +749,3 @@ const styles = StyleSheet.create({
 });
 
 export default Home;
-
