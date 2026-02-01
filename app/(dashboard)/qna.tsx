@@ -41,6 +41,7 @@ export default function QnA() {
       {},
   );
   const [likedMap, setLikedMap] = React.useState<Record<string, boolean>>({});
+  const [fullScreenImage, setFullScreenImage] = React.useState<string | null>(null);
   const postsRef = React.useRef<any[]>([]);
   const updatePosts = (nextOrUpdater: any) => {
     setPosts((prev) => {
@@ -180,7 +181,7 @@ export default function QnA() {
 
   return (
       <View className="flex-1 px-6 py-8 bg-green-50">
-        <Text className="text-3xl font-bold text-green-600 mb-6">Q&amp;A</Text>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: '#16A34A',marginBottom: 20 }}>📝 Questions & Answers</Text>
         <FlatList
             ref={listRef}
             data={posts}
@@ -198,15 +199,17 @@ export default function QnA() {
               return (
                   <View className="bg-white rounded-2xl p-4 mb-4">
                     {imgUri ? (
-                        <Image
-                            source={{ uri: imgUri }}
-                            style={{
-                              width: "100%",
-                              height: 180,
-                              borderRadius: 12,
-                              marginBottom: 8,
-                            }}
-                        />
+                        <Pressable onPress={() => setFullScreenImage(imgUri)}>
+                          <Image
+                              source={{ uri: imgUri }}
+                              style={{
+                                width: "100%",
+                                height: 180,
+                                borderRadius: 12,
+                                marginBottom: 8,
+                              }}
+                          />
+                        </Pressable>
                     ) : null}
                     {/* author row */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
@@ -376,10 +379,12 @@ export default function QnA() {
                                           <Text style={{ marginLeft: 8, fontSize: 12, fontWeight: '600', color: '#065f46' }}>{r.userId === user?.uid ? 'You' : (r.userName ?? 'Anonymous')}</Text>
                                         </View>
                                         {r.imageUrl || r.image || r.imageBase64 || r.dataUrl ? (
-                                            <Image
-                                                source={{ uri: r.imageUrl || r.image || r.imageBase64 || r.dataUrl }}
-                                                style={{ width: '100%', height: 140, borderRadius: 8, marginBottom: 8 }}
-                                            />
+                                            <Pressable onPress={() => setFullScreenImage(r.imageUrl || r.image || r.imageBase64 || r.dataUrl)}>
+                                              <Image
+                                                  source={{ uri: r.imageUrl || r.image || r.imageBase64 || r.dataUrl }}
+                                                  style={{ width: '100%', height: 140, borderRadius: 8, marginBottom: 8 }}
+                                              />
+                                            </Pressable>
                                         ) : null}
                                         {r.text ? (
                                             <Text className="text-sm text-gray-800">{r.text}</Text>
@@ -418,6 +423,46 @@ export default function QnA() {
               );
             }}
         />
+
+        {/* Full-screen image modal */}
+        {fullScreenImage ? (
+            <Pressable
+                onPress={() => setFullScreenImage(null)}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.9)',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  zIndex: 1000,
+                }}
+            >
+              <Image
+                  source={{ uri: fullScreenImage }}
+                  style={{
+                    width: '90%',
+                    height: '80%',
+                  }}
+                  resizeMode="contain"
+              />
+              <Pressable
+                  onPress={() => setFullScreenImage(null)}
+                  style={{
+                    position: 'absolute',
+                    top: 40,
+                    right: 20,
+                    backgroundColor: 'white',
+                    borderRadius: 20,
+                    padding: 8,
+                  }}
+              >
+                <MaterialIcons name="close" size={24} color="#000" />
+              </Pressable>
+            </Pressable>
+        ) : null}
       </View>
   );
 }
