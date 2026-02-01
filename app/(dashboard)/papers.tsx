@@ -1,9 +1,10 @@
 import { FontAwesome } from "@expo/vector-icons";
 import React from "react";
-import { FlatList, Linking, Pressable, Text, View, Platform, Alert, Modal, ScrollView } from "react-native";
+import { FlatList, Linking, Pressable, Text, View, Platform, Modal, ScrollView } from "react-native";
 import { onSnapshot, collection, query, orderBy, doc, setDoc, deleteDoc, getDocs, where } from "firebase/firestore";
 import { db , auth} from "../../service/firebase";
 import { Picker } from "@react-native-picker/picker";
+import Toast from "react-native-toast-message";
 
 export default function Papers() {
   const [papers, setPapers] = React.useState<any[]>([]);
@@ -92,7 +93,11 @@ export default function Papers() {
   const toggleBookmark = async (paperId: string) => {
     const user = auth.currentUser;
     if (!user) {
-      Alert.alert("Not logged in", "Please log in to bookmark papers");
+      Toast.show({
+        type: "info",
+        text1: "Not Logged In",
+        text2: "Please log in to bookmark papers",
+      });
       return;
     }
 
@@ -104,20 +109,58 @@ export default function Papers() {
         // Remove bookmark
         await deleteDoc(bookmarkRef);
         setBookmarkedPapers(prev => prev.filter(id => id !== paperId));
-        Alert.alert("Removed", "Paper removed from bookmarks");
+        Toast.show({
+          type: "success",
+          text1: "Bookmark Removed",
+          text2: "Paper removed from your bookmarks",
+        });
       } else {
-        // Add bookmark
+        // Add bookmark - save full paper object
+        const paper = papers.find(p => p.id === paperId);
+        if (!paper) {
+          console.log("Paper not found:", paperId);
+          return;
+        }
+
+        console.log("Saving bookmark for paper:", paper);
+
+        // Create a clean paper object for Firestore - exclude undefined values
+        const paperData: any = {
+          id: paper.id,
+          url: paper.url,
+        };
+
+        // Only add fields that are not undefined
+        if (paper.title) paperData.title = paper.title;
+        if (paper.grade) paperData.grade = paper.grade;
+        if (paper.province) paperData.province = paper.province;
+        if (paper.term) paperData.term = paper.term;
+        if (paper.examType) paperData.examType = paper.examType;
+        if (paper.textbook) paperData.textbook = paper.textbook;
+        if (paper.subject) paperData.subject = paper.subject;
+        if (paper.medium) paperData.medium = paper.medium;
+        if (paper.authorId) paperData.authorId = paper.authorId;
+
         await setDoc(bookmarkRef, {
           userId: user.uid,
           paperId: paperId,
+          paper: paperData,
           createdAt: new Date(),
         });
         setBookmarkedPapers(prev => [...prev, paperId]);
-        Alert.alert("Bookmarked", "Paper added to bookmarks");
+        Toast.show({
+          type: "success",
+          text1: "Bookmarked",
+          text2: "Paper added to your bookmarks",
+        });
       }
     } catch (error) {
       console.error("Error toggling bookmark:", error);
-      Alert.alert("Error", "Failed to update bookmark");
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to update bookmark",
+      });
     }
   };
 
