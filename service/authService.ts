@@ -3,8 +3,9 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     updateProfile,
+    deleteUser,
 } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 export const registerUser = async (
@@ -46,3 +47,30 @@ export const logoutUser = async () => {
   AsyncStorage.clear();
   return;
 };
+
+export const deleteAccount = async () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not authenticated");
+
+  // Delete user's bookmarks
+  const bookmarksQuery = query(collection(db, "bookmarks"), where("userId", "==", user.uid));
+  const bookmarksSnapshot = await getDocs(bookmarksQuery);
+  const deleteBookmarksPromises = bookmarksSnapshot.docs.map(doc => deleteDoc(doc.ref));
+  await Promise.all(deleteBookmarksPromises);
+
+  // Delete user's questions
+  const questionsQuery = query(collection(db, "questions"), where("userId", "==", user.uid));
+  const questionsSnapshot = await getDocs(questionsQuery);
+  const deleteQuestionsPromises = questionsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+  await Promise.all(deleteQuestionsPromises);
+
+  // Delete user document
+  await deleteDoc(doc(db, "users", user.uid));
+
+  // Delete user authentication
+  await deleteUser(user);
+
+  // Clear local storage
+  await AsyncStorage.clear();
+};
+
