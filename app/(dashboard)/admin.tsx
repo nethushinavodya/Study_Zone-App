@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, Pressable, Platform, ScrollView } from 'react-native';
-import { uploadPaperFile, getAllPapers, Paper } from '../../service/paperService';
+import { uploadPaperFile, getAllPapers, Paper, uploadTextbook, getAllTextbooks, Textbook } from '../../service/paperService';
 import { auth } from '../../service/firebase';
 import { signInWithEmailAndPassword, signOut, getIdTokenResult } from 'firebase/auth';
 import Toast from 'react-native-toast-message';
@@ -12,21 +12,39 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [tokenClaims, setTokenClaims] = React.useState<Record<string, any> | null>(null);
-  const [title, setTitle] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
-  const [driveUrl, setDriveUrl] = React.useState('');
 
+  // Active tab: 'papers' or 'textbooks'
+  const [activeTab, setActiveTab] = React.useState<'papers' | 'textbooks'>('papers');
+
+  // Paper form fields
+  const [paperTitle, setPaperTitle] = React.useState('');
+  const [paperLoading, setPaperLoading] = React.useState(false);
+  const [paperDriveUrl, setPaperDriveUrl] = React.useState('');
   const [grade, setGrade] = React.useState('');
   const [province, setProvince] = React.useState('');
   const [term, setTerm] = React.useState('');
   const [examType, setExamType] = React.useState('');
   const [textbook, setTextbook] = React.useState('');
-  const [subject, setSubject] = React.useState('');
-  const [medium, setMedium] = React.useState('');
+  const [paperSubject, setPaperSubject] = React.useState('');
+  const [paperMedium, setPaperMedium] = React.useState('');
+
+  // Textbook form fields
+  const [textbookTitle, setTextbookTitle] = React.useState('');
+  const [textbookSubject, setTextbookSubject] = React.useState('');
+  const [textbookGrade, setTextbookGrade] = React.useState('');
+  const [textbookMedium, setTextbookMedium] = React.useState('');
+  const [textbookDescription, setTextbookDescription] = React.useState('');
+  const [textbookDriveUrl, setTextbookDriveUrl] = React.useState('');
+  const [textbookCoverColor, setTextbookCoverColor] = React.useState('#4CAF50');
+  const [textbookLoading, setTextbookLoading] = React.useState(false);
 
   // Papers list
   const [papers, setPapers] = React.useState<Paper[]>([]);
   const [loadingPapers, setLoadingPapers] = React.useState(false);
+
+  // Textbooks list
+  const [textbooks, setTextbooks] = React.useState<Textbook[]>([]);
+  const [loadingTextbooks, setLoadingTextbooks] = React.useState(false);
 
   React.useEffect(() => {
     const sub = auth.onAuthStateChanged(async (u) => {
@@ -48,9 +66,13 @@ export default function AdminPage() {
 
   React.useEffect(() => {
     if (isAdmin) {
-      loadPapers();
+      if (activeTab === 'papers') {
+        loadPapers();
+      } else {
+        loadTextbooks();
+      }
     }
-  }, [isAdmin]);
+  }, [isAdmin, activeTab]);
 
   if (Platform.OS !== 'web') {
     return (
@@ -127,36 +149,52 @@ export default function AdminPage() {
     setLoadingPapers(false);
   };
 
-  const submit = async () => {
-    setLoading(true);
+  const loadTextbooks = async () => {
+    setLoadingTextbooks(true);
+    try {
+      const fetchedTextbooks = await getAllTextbooks();
+      setTextbooks(fetchedTextbooks);
+    } catch (err) {
+      console.error('Failed to load textbooks', err);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to load textbooks",
+      });
+    }
+    setLoadingTextbooks(false);
+  };
+
+  const submitPaper = async () => {
+    setPaperLoading(true);
     try {
       const res = await uploadPaperFile(
         {
-          title: title || 'Untitled',
+          title: paperTitle || 'Untitled',
           grade: grade || '',
           province: province || '',
           term: term || '',
           examType: examType || '',
           textbook: textbook || '',
-          subject: subject || '',
-          medium: medium || '',
+          subject: paperSubject || '',
+          medium: paperMedium || '',
         },
-        driveUrl || ''
+        paperDriveUrl || ''
       );
       Toast.show({
         type: "success",
         text1: "Upload Successful",
         text2: `Paper saved: ${res.id}`,
       });
-      setTitle('');
-      setDriveUrl('');
+      setPaperTitle('');
+      setPaperDriveUrl('');
       setGrade('');
       setProvince('');
       setTerm('');
       setExamType('');
       setTextbook('');
-      setSubject('');
-      setMedium('');
+      setPaperSubject('');
+      setPaperMedium('');
       loadPapers();
     } catch (err) {
       console.error('Upload failed', err);
@@ -166,7 +204,52 @@ export default function AdminPage() {
         text2: "Failed to upload paper. Please try again.",
       });
     }
-    setLoading(false);
+    setPaperLoading(false);
+  };
+
+  const submitTextbook = async () => {
+    if (!textbookTitle || !textbookSubject || !textbookGrade || !textbookMedium || !textbookDriveUrl) {
+      Toast.show({
+        type: "error",
+        text1: "Missing Information",
+        text2: "Please fill in all required fields",
+      });
+      return;
+    }
+
+    setTextbookLoading(true);
+    try {
+      const res = await uploadTextbook(
+        textbookTitle,
+        textbookSubject,
+        textbookGrade,
+        textbookMedium,
+        textbookDriveUrl,
+        textbookDescription,
+        textbookCoverColor
+      );
+      Toast.show({
+        type: "success",
+        text1: "Upload Successful",
+        text2: `Textbook saved: ${res.id}`,
+      });
+      setTextbookTitle('');
+      setTextbookSubject('');
+      setTextbookGrade('');
+      setTextbookMedium('');
+      setTextbookDescription('');
+      setTextbookDriveUrl('');
+      setTextbookCoverColor('#4CAF50');
+      loadTextbooks();
+    } catch (err) {
+      console.error('Upload failed', err);
+      Toast.show({
+        type: "error",
+        text1: "Upload Failed",
+        text2: "Failed to upload textbook. Please try again.",
+      });
+    }
+    setTextbookLoading(false);
   };
 
   const refreshClaims = async () => {
@@ -214,245 +297,509 @@ export default function AdminPage() {
   return (
     <ScrollView style={{ flex: 1 }}>
       <View style={{ padding: 24 }}>
-        <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12 }}>Upload Paper</Text>
-        <Text style={{ marginBottom: 8 }}>Signed in as: {auth.currentUser?.email}</Text>
-        <Pressable onPress={doSignOut} style={{ marginBottom: 12 }}>
-          <Text style={{ color: '#16A34A' }}>Sign out</Text>
-        </Pressable>
-        <Pressable onPress={refreshClaims} style={{ marginBottom: 12 }}>
-          <Text style={{ color: '#16A34A' }}>Refresh claims</Text>
-        </Pressable>
+        <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 8 }}>Admin Dashboard</Text>
+        <Text style={{ marginBottom: 12, color: '#666' }}>Signed in as: {auth.currentUser?.email}</Text>
 
-        <TextInput
-          placeholder='Title'
-          value={title}
-          onChangeText={setTitle}
-          style={{ borderWidth: 1, padding: 8, borderRadius: 8, marginBottom: 12 }}
-        />
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+          <Pressable onPress={doSignOut} style={{ backgroundColor: '#DC2626', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 }}>
+            <Text style={{ color: 'white', fontWeight: '600' }}>Sign out</Text>
+          </Pressable>
+          <Pressable onPress={refreshClaims} style={{ backgroundColor: '#6B7280', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 }}>
+            <Text style={{ color: 'white', fontWeight: '600' }}>Refresh claims</Text>
+          </Pressable>
+        </View>
 
-        {/* Exam Type Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Exam Type</Text>
-          <select
-            value={examType}
-            onChange={(e: any) => setExamType(e.target.value)}
-            style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+        {/* Tab Navigation */}
+        <View style={{ flexDirection: 'row', marginBottom: 24, borderBottomWidth: 2, borderBottomColor: '#E5E7EB' }}>
+          <Pressable
+            onPress={() => setActiveTab('papers')}
+            style={{
+              flex: 1,
+              paddingVertical: 12,
+              borderBottomWidth: activeTab === 'papers' ? 3 : 0,
+              borderBottomColor: '#16A34A',
+              marginBottom: -2,
+            }}
           >
-            <option value="">Select Exam Type</option>
-            <option value="AL">A/L (Advanced Level)</option>
-            <option value="OL">O/L (Ordinary Level)</option>
-          </select>
-        </View>
-
-        {/* Grade Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Grade</Text>
-          <select
-            value={grade}
-            onChange={(e: any) => setGrade(e.target.value)}
-            style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
-          >
-            <option value="">Select Grade</option>
-            <option value="6">Grade 6</option>
-            <option value="7">Grade 7</option>
-            <option value="8">Grade 8</option>
-            <option value="9">Grade 9</option>
-            <option value="10">Grade 10</option>
-            <option value="11">Grade 11</option>
-            <option value="12">Grade 12</option>
-            <option value="13">Grade 13</option>
-          </select>
-        </View>
-
-        {/* Province Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Province</Text>
-          <select
-            value={province}
-            onChange={(e: any) => setProvince(e.target.value)}
-            style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
-          >
-            <option value="">Select Province</option>
-            <option value="Western">Western Province</option>
-            <option value="Central">Central Province</option>
-            <option value="Southern">Southern Province</option>
-            <option value="Northern">Northern Province</option>
-            <option value="Eastern">Eastern Province</option>
-            <option value="North Western">North Western Province</option>
-            <option value="North Central">North Central Province</option>
-            <option value="Uva">Uva Province</option>
-            <option value="Sabaragamuwa">Sabaragamuwa Province</option>
-          </select>
-        </View>
-
-        {/* Term Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Term</Text>
-          <select
-            value={term}
-            onChange={(e: any) => setTerm(e.target.value)}
-            style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
-          >
-            <option value="">Select Term</option>
-            <option value="Term 1">Term 1</option>
-            <option value="Term 2">Term 2</option>
-            <option value="Term 3">Term 3</option>
-            <option value="Annual">Annual Exam</option>
-          </select>
-        </View>
-
-        {/* Textbook Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Textbook</Text>
-          <TextInput
-            placeholder='Enter textbook name (optional)'
-            value={textbook}
-            onChangeText={setTextbook}
-            style={{ borderWidth: 1, padding: 8, borderRadius: 8, borderColor: '#ccc' }}
-          />
-        </View>
-
-        {/* Subject Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Subject</Text>
-          <select
-            value={subject}
-            onChange={(e: any) => setSubject(e.target.value)}
-            style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
-          >
-            <option value="">Select Subject</option>
-            <option value="Mathematics">Mathematics</option>
-            <option value="Science">Science</option>
-            <option value="Sinhala">Sinhala</option>
-            <option value="English">English</option>
-            <option value="Tamil">Tamil</option>
-            <option value="History">History</option>
-            <option value="Geography">Geography</option>
-            <option value="Buddhism">Buddhism</option>
-            <option value="Christianity">Christianity</option>
-            <option value="Islam">Islam</option>
-            <option value="Hinduism">Hinduism</option>
-            <option value="ICT">ICT</option>
-            <option value="Commerce">Commerce</option>
-            <option value="Business Studies">Business Studies</option>
-            <option value="Accounting">Accounting</option>
-            <option value="Economics">Economics</option>
-            <option value="Physics">Physics</option>
-            <option value="Chemistry">Chemistry</option>
-            <option value="Biology">Biology</option>
-            <option value="Combined Mathematics">Combined Mathematics</option>
-            <option value="Art">Art</option>
-            <option value="Dancing">Dancing</option>
-            <option value="Music">Music</option>
-            <option value="Drama">Drama</option>
-            <option value="Agriculture">Agriculture</option>
-            <option value="Health Science">Health Science</option>
-            <option value="Home Economics">Home Economics</option>
-            <option value="Engineering Technology">Engineering Technology</option>
-            <option value="Other">Other</option>
-          </select>
-        </View>
-
-        {/* Medium Dropdown */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Medium</Text>
-          <select
-            value={medium}
-            onChange={(e: any) => setMedium(e.target.value)}
-            style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
-          >
-            <option value="">Select Medium</option>
-            <option value="Sinhala">Sinhala</option>
-            <option value="English">English</option>
-            <option value="Tamil">Tamil</option>
-          </select>
-        </View>
-
-        {/* Drive URL Input */}
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ marginBottom: 4, fontWeight: '500' }}>Google Drive URL</Text>
-          <TextInput
-            placeholder='Paste Google Drive URL here (optional)'
-            value={driveUrl}
-            onChangeText={setDriveUrl}
-            style={{ borderWidth: 1, padding: 8, borderRadius: 8, borderColor: '#ccc' }}
-          />
-          <View style={{ backgroundColor: '#fff3cd', padding: 8, borderRadius: 6, marginTop: 4, borderWidth: 1, borderColor: '#ffc107' }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#856404', marginBottom: 4 }}>
-              📌 How to get proper download link:
+            <Text style={{
+              textAlign: 'center',
+              fontWeight: activeTab === 'papers' ? '700' : '500',
+              color: activeTab === 'papers' ? '#16A34A' : '#6B7280',
+              fontSize: 16,
+            }}>
+              📄 Add Papers
             </Text>
-            <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
-              1. Upload PDF to Google Drive
+          </Pressable>
+          <Pressable
+            onPress={() => setActiveTab('textbooks')}
+            style={{
+              flex: 1,
+              paddingVertical: 12,
+              borderBottomWidth: activeTab === 'textbooks' ? 3 : 0,
+              borderBottomColor: '#16A34A',
+              marginBottom: -2,
+            }}
+          >
+            <Text style={{
+              textAlign: 'center',
+              fontWeight: activeTab === 'textbooks' ? '700' : '500',
+              color: activeTab === 'textbooks' ? '#16A34A' : '#6B7280',
+              fontSize: 16,
+            }}>
+              📚 Add Textbooks
             </Text>
-            <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
-              2. Right-click → Share → Change to &quot;Anyone with the link&quot;
-            </Text>
-            <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
-              3. Copy the link and paste here
-            </Text>
-            <Text style={{ fontSize: 11, color: '#856404', fontWeight: '600', marginTop: 4 }}>
-              Note: Students will see a download page from Google Drive
-            </Text>
-          </View>
+          </Pressable>
         </View>
 
-        <Pressable onPress={submit} style={{ backgroundColor: '#16A34A', padding: 12, borderRadius: 8, marginBottom: 24 }}>
-          <Text style={{ color: 'white', textAlign: 'center' }}>{loading ? 'Uploading...' : 'Save Paper'}</Text>
-        </Pressable>
+        {/* Papers Tab Content */}
+        {activeTab === 'papers' ? (
+          <View>
+            <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 16 }}>Upload Paper</Text>
 
-        {/* Uploaded Papers List */}
-        <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 24 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700' }}>Uploaded Papers</Text>
-            <Pressable onPress={loadPapers} style={{ backgroundColor: '#e0e0e0', padding: 8, borderRadius: 6 }}>
-              <Text>{loadingPapers ? 'Loading...' : 'Refresh'}</Text>
-            </Pressable>
-          </View>
+            <TextInput
+              placeholder='Title'
+              value={paperTitle}
+              onChangeText={setPaperTitle}
+              style={{ borderWidth: 1, padding: 8, borderRadius: 8, marginBottom: 12, borderColor: '#ccc' }}
+            />
 
-          {loadingPapers ? (
-            <Text style={{ textAlign: 'center', padding: 20, color: '#666' }}>Loading papers...</Text>
-          ) : papers.length === 0 ? (
-            <Text style={{ textAlign: 'center', padding: 20, color: '#666' }}>No papers uploaded yet</Text>
-          ) : (
-            <View>
-              {papers.map((paper) => (
-                <View
-                  key={paper.id}
-                  style={{
-                    backgroundColor: '#f9f9f9',
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: 12,
-                    borderWidth: 1,
-                    borderColor: '#e0e0e0'
-                  }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4 }}>{paper.title}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 12, backgroundColor: '#e3f2fd', padding: 4, borderRadius: 4 }}>
-                      {paper.examType}
-                    </Text>
-                    <Text style={{ fontSize: 12, backgroundColor: '#f3e5f5', padding: 4, borderRadius: 4 }}>
-                      Grade {paper.grade}
-                    </Text>
-                    <Text style={{ fontSize: 12, backgroundColor: '#e8f5e9', padding: 4, borderRadius: 4 }}>
-                      {paper.province}
-                    </Text>
-                    <Text style={{ fontSize: 12, backgroundColor: '#fff3e0', padding: 4, borderRadius: 4 }}>
-                      {paper.term}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => window.open(paper.url, '_blank')}
-                    style={{ backgroundColor: '#2196F3', padding: 8, borderRadius: 6, marginTop: 4 }}
-                  >
-                    <Text style={{ color: 'white', textAlign: 'center', fontSize: 14 }}>View PDF</Text>
-                  </Pressable>
-                </View>
-              ))}
+            {/* Exam Type Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Exam Type</Text>
+              <select
+                value={examType}
+                onChange={(e: any) => setExamType(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Exam Type</option>
+                <option value="AL">A/L (Advanced Level)</option>
+                <option value="OL">O/L (Ordinary Level)</option>
+              </select>
             </View>
-          )}
-        </View>
+
+            {/* Grade Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Grade</Text>
+              <select
+                value={grade}
+                onChange={(e: any) => setGrade(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Grade</option>
+                <option value="6">Grade 6</option>
+                <option value="7">Grade 7</option>
+                <option value="8">Grade 8</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+                <option value="13">Grade 13</option>
+              </select>
+            </View>
+
+            {/* Province Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Province</Text>
+              <select
+                value={province}
+                onChange={(e: any) => setProvince(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Province</option>
+                <option value="Western">Western Province</option>
+                <option value="Central">Central Province</option>
+                <option value="Southern">Southern Province</option>
+                <option value="Northern">Northern Province</option>
+                <option value="Eastern">Eastern Province</option>
+                <option value="North Western">North Western Province</option>
+                <option value="North Central">North Central Province</option>
+                <option value="Uva">Uva Province</option>
+                <option value="Sabaragamuwa">Sabaragamuwa Province</option>
+              </select>
+            </View>
+
+            {/* Term Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Term</Text>
+              <select
+                value={term}
+                onChange={(e: any) => setTerm(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Term</option>
+                <option value="Term 1">Term 1</option>
+                <option value="Term 2">Term 2</option>
+                <option value="Term 3">Term 3</option>
+                <option value="Annual">Annual Exam</option>
+              </select>
+            </View>
+
+            {/* Textbook Input */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Textbook</Text>
+              <TextInput
+                placeholder='Enter textbook name (optional)'
+                value={textbook}
+                onChangeText={setTextbook}
+                style={{ borderWidth: 1, padding: 8, borderRadius: 8, borderColor: '#ccc' }}
+              />
+            </View>
+
+            {/* Subject Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Subject</Text>
+              <select
+                value={paperSubject}
+                onChange={(e: any) => setPaperSubject(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Subject</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Science">Science</option>
+                <option value="Sinhala">Sinhala</option>
+                <option value="English">English</option>
+                <option value="Tamil">Tamil</option>
+                <option value="History">History</option>
+                <option value="Geography">Geography</option>
+                <option value="Buddhism">Buddhism</option>
+                <option value="Christianity">Christianity</option>
+                <option value="Islam">Islam</option>
+                <option value="Hinduism">Hinduism</option>
+                <option value="ICT">ICT</option>
+                <option value="Commerce">Commerce</option>
+                <option value="Business Studies">Business Studies</option>
+                <option value="Accounting">Accounting</option>
+                <option value="Economics">Economics</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+                <option value="Combined Mathematics">Combined Mathematics</option>
+                <option value="Art">Art</option>
+                <option value="Dancing">Dancing</option>
+                <option value="Music">Music</option>
+                <option value="Drama">Drama</option>
+                <option value="Agriculture">Agriculture</option>
+                <option value="Health Science">Health Science</option>
+                <option value="Home Economics">Home Economics</option>
+                <option value="Engineering Technology">Engineering Technology</option>
+                <option value="Other">Other</option>
+              </select>
+            </View>
+
+            {/* Medium Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Medium</Text>
+              <select
+                value={paperMedium}
+                onChange={(e: any) => setPaperMedium(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Medium</option>
+                <option value="Sinhala">Sinhala</option>
+                <option value="English">English</option>
+                <option value="Tamil">Tamil</option>
+              </select>
+            </View>
+
+            {/* Drive URL Input */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Google Drive URL</Text>
+              <TextInput
+                placeholder='Paste Google Drive URL here'
+                value={paperDriveUrl}
+                onChangeText={setPaperDriveUrl}
+                style={{ borderWidth: 1, padding: 8, borderRadius: 8, borderColor: '#ccc' }}
+              />
+              <View style={{ backgroundColor: '#fff3cd', padding: 8, borderRadius: 6, marginTop: 4, borderWidth: 1, borderColor: '#ffc107' }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#856404', marginBottom: 4 }}>
+                  📌 How to get proper download link:
+                </Text>
+                <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
+                  1. Upload PDF to Google Drive
+                </Text>
+                <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
+                  2. Right-click → Share → Change to &quot;Anyone with the link&quot;
+                </Text>
+                <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
+                  3. Copy the link and paste here
+                </Text>
+              </View>
+            </View>
+
+            <Pressable onPress={submitPaper} style={{ backgroundColor: '#16A34A', padding: 12, borderRadius: 8, marginBottom: 24 }}>
+              <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>
+                {paperLoading ? 'Uploading...' : 'Save Paper'}
+              </Text>
+            </Pressable>
+
+            {/* Uploaded Papers List */}
+            <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 24 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700' }}>Uploaded Papers</Text>
+                <Pressable onPress={loadPapers} style={{ backgroundColor: '#e0e0e0', padding: 8, borderRadius: 6 }}>
+                  <Text>{loadingPapers ? 'Loading...' : 'Refresh'}</Text>
+                </Pressable>
+              </View>
+
+              {loadingPapers ? (
+                <Text style={{ textAlign: 'center', padding: 20, color: '#666' }}>Loading papers...</Text>
+              ) : papers.length === 0 ? (
+                <Text style={{ textAlign: 'center', padding: 20, color: '#666' }}>No papers uploaded yet</Text>
+              ) : (
+                <View>
+                  {papers.map((paper) => (
+                    <View
+                      key={paper.id}
+                      style={{
+                        backgroundColor: '#f9f9f9',
+                        padding: 12,
+                        borderRadius: 8,
+                        marginBottom: 12,
+                        borderWidth: 1,
+                        borderColor: '#e0e0e0'
+                      }}
+                    >
+                      <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4 }}>{paper.title}</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                        <Text style={{ fontSize: 12, backgroundColor: '#e3f2fd', padding: 4, borderRadius: 4 }}>
+                          {paper.examType}
+                        </Text>
+                        <Text style={{ fontSize: 12, backgroundColor: '#f3e5f5', padding: 4, borderRadius: 4 }}>
+                          Grade {paper.grade}
+                        </Text>
+                        <Text style={{ fontSize: 12, backgroundColor: '#e8f5e9', padding: 4, borderRadius: 4 }}>
+                          {paper.province}
+                        </Text>
+                        <Text style={{ fontSize: 12, backgroundColor: '#fff3e0', padding: 4, borderRadius: 4 }}>
+                          {paper.term}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => window.open(paper.url, '_blank')}
+                        style={{ backgroundColor: '#2196F3', padding: 8, borderRadius: 6, marginTop: 4 }}
+                      >
+                        <Text style={{ color: 'white', textAlign: 'center', fontSize: 14 }}>View PDF</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        ) : (
+          /* Textbooks Tab Content */
+          <View>
+            <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 16 }}>Upload Textbook</Text>
+
+            <TextInput
+              placeholder='Textbook Title *'
+              value={textbookTitle}
+              onChangeText={setTextbookTitle}
+              style={{ borderWidth: 1, padding: 8, borderRadius: 8, marginBottom: 12, borderColor: '#ccc' }}
+            />
+
+            {/* Subject Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Subject *</Text>
+              <select
+                value={textbookSubject}
+                onChange={(e: any) => setTextbookSubject(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Subject</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Science">Science</option>
+                <option value="Sinhala">Sinhala</option>
+                <option value="English">English</option>
+                <option value="Tamil">Tamil</option>
+                <option value="History">History</option>
+                <option value="Geography">Geography</option>
+                <option value="Buddhism">Buddhism</option>
+                <option value="Christianity">Christianity</option>
+                <option value="Islam">Islam</option>
+                <option value="Hinduism">Hinduism</option>
+                <option value="ICT">ICT</option>
+                <option value="Commerce">Commerce</option>
+                <option value="Business Studies">Business Studies</option>
+                <option value="Accounting">Accounting</option>
+                <option value="Economics">Economics</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+                <option value="Combined Mathematics">Combined Mathematics</option>
+                <option value="Art">Art</option>
+                <option value="Dancing">Dancing</option>
+                <option value="Music">Music</option>
+                <option value="Drama">Drama</option>
+                <option value="Agriculture">Agriculture</option>
+                <option value="Health Science">Health Science</option>
+                <option value="Home Economics">Home Economics</option>
+                <option value="Engineering Technology">Engineering Technology</option>
+                <option value="Other">Other</option>
+              </select>
+            </View>
+
+            {/* Grade Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Grade *</Text>
+              <select
+                value={textbookGrade}
+                onChange={(e: any) => setTextbookGrade(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Grade</option>
+                <option value="6">Grade 6</option>
+                <option value="7">Grade 7</option>
+                <option value="8">Grade 8</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+                <option value="13">Grade 13</option>
+              </select>
+            </View>
+
+            {/* Medium Dropdown */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Medium *</Text>
+              <select
+                value={textbookMedium}
+                onChange={(e: any) => setTextbookMedium(e.target.value)}
+                style={{ width: '100%', padding: 8, borderWidth: 1, borderRadius: 8, borderColor: '#ccc' }}
+              >
+                <option value="">Select Medium</option>
+                <option value="Sinhala">Sinhala</option>
+                <option value="English">English</option>
+                <option value="Tamil">Tamil</option>
+              </select>
+            </View>
+
+            {/* Description */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Description (optional)</Text>
+              <TextInput
+                placeholder='Enter textbook description'
+                value={textbookDescription}
+                onChangeText={setTextbookDescription}
+                multiline
+                numberOfLines={3}
+                style={{ borderWidth: 1, padding: 8, borderRadius: 8, borderColor: '#ccc', textAlignVertical: 'top' }}
+              />
+            </View>
+
+            {/* Cover Color */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Cover Color</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <input
+                  type="color"
+                  value={textbookCoverColor}
+                  onChange={(e: any) => setTextbookCoverColor(e.target.value)}
+                  style={{ width: 60, height: 40, borderRadius: 8, border: '1px solid #ccc', cursor: 'pointer' }}
+                />
+                <Text style={{ color: '#666' }}>{textbookCoverColor}</Text>
+              </View>
+            </View>
+
+            {/* Drive URL Input */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ marginBottom: 4, fontWeight: '500' }}>Google Drive URL *</Text>
+              <TextInput
+                placeholder='Paste Google Drive URL here'
+                value={textbookDriveUrl}
+                onChangeText={setTextbookDriveUrl}
+                style={{ borderWidth: 1, padding: 8, borderRadius: 8, borderColor: '#ccc' }}
+              />
+              <View style={{ backgroundColor: '#fff3cd', padding: 8, borderRadius: 6, marginTop: 4, borderWidth: 1, borderColor: '#ffc107' }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#856404', marginBottom: 4 }}>
+                  📌 How to get proper download link:
+                </Text>
+                <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
+                  1. Upload textbook PDF to Google Drive
+                </Text>
+                <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
+                  2. Right-click → Share → Change to &quot;Anyone with the link&quot;
+                </Text>
+                <Text style={{ fontSize: 11, color: '#856404', marginBottom: 2 }}>
+                  3. Copy the link and paste here
+                </Text>
+              </View>
+            </View>
+
+            <Pressable onPress={submitTextbook} style={{ backgroundColor: '#16A34A', padding: 12, borderRadius: 8, marginBottom: 24 }}>
+              <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>
+                {textbookLoading ? 'Uploading...' : 'Save Textbook'}
+              </Text>
+            </Pressable>
+
+            {/* Uploaded Textbooks List */}
+            <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#ccc', paddingTop: 24 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700' }}>Uploaded Textbooks</Text>
+                <Pressable onPress={loadTextbooks} style={{ backgroundColor: '#e0e0e0', padding: 8, borderRadius: 6 }}>
+                  <Text>{loadingTextbooks ? 'Loading...' : 'Refresh'}</Text>
+                </Pressable>
+              </View>
+
+              {loadingTextbooks ? (
+                <Text style={{ textAlign: 'center', padding: 20, color: '#666' }}>Loading textbooks...</Text>
+              ) : textbooks.length === 0 ? (
+                <Text style={{ textAlign: 'center', padding: 20, color: '#666' }}>No textbooks uploaded yet</Text>
+              ) : (
+                <View>
+                  {textbooks.map((textbook) => (
+                    <View
+                      key={textbook.id}
+                      style={{
+                        backgroundColor: '#f9f9f9',
+                        padding: 12,
+                        borderRadius: 8,
+                        marginBottom: 12,
+                        borderWidth: 1,
+                        borderColor: '#e0e0e0'
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                        <View
+                          style={{
+                            width: 40,
+                            height: 50,
+                            backgroundColor: textbook.coverColor || '#4CAF50',
+                            borderRadius: 4,
+                            marginRight: 12
+                          }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4 }}>{textbook.title}</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            <Text style={{ fontSize: 12, backgroundColor: '#e3f2fd', padding: 4, borderRadius: 4 }}>
+                              {textbook.subject}
+                            </Text>
+                            <Text style={{ fontSize: 12, backgroundColor: '#f3e5f5', padding: 4, borderRadius: 4 }}>
+                              Grade {textbook.grade}
+                            </Text>
+                            <Text style={{ fontSize: 12, backgroundColor: '#e8f5e9', padding: 4, borderRadius: 4 }}>
+                              {textbook.medium}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {textbook.description ? (
+                        <Text style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>{textbook.description}</Text>
+                      ) : null}
+                      <Pressable
+                        onPress={() => window.open(textbook.url, '_blank')}
+                        style={{ backgroundColor: '#2196F3', padding: 8, borderRadius: 6, marginTop: 4 }}
+                      >
+                        <Text style={{ color: 'white', textAlign: 'center', fontSize: 14 }}>View PDF</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
