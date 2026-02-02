@@ -19,6 +19,8 @@ import {
 } from "../../service/questions";
 import { onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../service/firebase";
+import { addTextbookBookmark, removeTextbookBookmark, isTextbookBookmarked } from "../../service/bookmarkService";
+import Toast from 'react-native-toast-message';
 
 const Home = () => {
   const router = useRouter();
@@ -26,6 +28,7 @@ const Home = () => {
   const [papers, setPapers] = useState<Array<any>>([]);
   const [textbooks, setTextbooks] = useState<Array<any>>([]);
   const [filteredTextbooks, setFilteredTextbooks] = useState<Array<any>>([]);
+  const [bookmarkedTextbooks, setBookmarkedTextbooks] = useState<Set<string>>(new Set());
   const { showLoader, hideLoader } = useLoader();
 
   // Sidebar and filter states
@@ -89,26 +92,61 @@ const Home = () => {
     setFilteredTextbooks(filtered);
   }, [textbooks, filterGrade, filterSubject, filterMedium]);
 
+  // Load bookmark status for all textbooks
+  useEffect(() => {
+    const loadBookmarks = async () => {
+      const bookmarkedSet = new Set<string>();
+      for (const textbook of textbooks) {
+        const isBookmarked = await isTextbookBookmarked(textbook.id);
+        if (isBookmarked) {
+          bookmarkedSet.add(textbook.id);
+        }
+      }
+      setBookmarkedTextbooks(bookmarkedSet);
+    };
+
+    if (textbooks.length > 0) {
+      loadBookmarks();
+    }
+  }, [textbooks]);
+
+  const handleBookmark = async (textbook: any) => {
+    try {
+      if (bookmarkedTextbooks.has(textbook.id)) {
+        await removeTextbookBookmark(textbook.id);
+        setBookmarkedTextbooks(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(textbook.id);
+          return newSet;
+        });
+        Toast.show({
+          type: "success",
+          text1: "Removed from bookmarks",
+          text2: "Textbook removed from your collection",
+        });
+      } else {
+        await addTextbookBookmark(textbook);
+        setBookmarkedTextbooks(prev => new Set(prev).add(textbook.id));
+        Toast.show({
+          type: "success",
+          text1: "Bookmarked!",
+          text2: "Textbook saved to your collection",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to update bookmark",
+      });
+    }
+  };
+
   const clearFilters = () => {
     setFilterGrade('');
     setFilterSubject('');
     setFilterMedium('');
-  };
-
-  const getColorForSubject = (subject: string) => {
-    const colors: any = {
-      Mathematics: '#dbeafe',
-      Science: '#d1fae5',
-      Physics: '#fce7f3',
-      Chemistry: '#e9d5ff',
-      Biology: '#fed7aa',
-      English: '#e0e7ff',
-      Sinhala: '#fef3c7',
-      Tamil: '#fce7f3',
-      History: '#ddd6fe',
-      Geography: '#d1fae5',
-    };
-    return colors[subject] || '#f3f4f6';
   };
 
 
@@ -170,19 +208,56 @@ const Home = () => {
                       return (
                           <View key={`row-${index}`} style={styles.textbooksRow}>
                             {row.map((item) => (
-                                <Pressable
+                                <View
                                     key={item.id}
-                                    style={[styles.textbookGridCard, { backgroundColor: getColorForSubject(item.subject) }]}
-                                    onPress={() => item.url && Linking.openURL(item.url)}
+                                    style={styles.textbookGridCard}
                                 >
-                                  <View style={styles.textbookIcon}>
-                                    <FontAwesome name="book" size={28} color="#1f2937" />
+                                  <View style={[styles.textbookCover, { backgroundColor: item.coverColor || '#4CAF50' }]}>
+                                    <FontAwesome name="book" size={32} color="#ffffff" />
                                   </View>
-                                  <Text style={styles.textbookGridTitle} numberOfLines={2}>{item.title}</Text>
-                                  <View style={styles.textbookBadge}>
-                                    <Text style={styles.textbookBadgeText}>Grade {item.grade}</Text>
+                                  <View style={styles.textbookInfo}>
+                                    <Text style={styles.textbookSubjectLabel} numberOfLines={1}>{item.subject}</Text>
+                                    <View style={styles.textbookMetadata}>
+                                      <View style={styles.textbookSmallBadge}>
+                                        <Text style={styles.textbookSmallBadgeText}>Grade {item.grade}</Text>
+                                      </View>
+                                      {item.medium && (
+                                        <View style={styles.textbookSmallBadge}>
+                                          <Text style={styles.textbookSmallBadgeText}>{item.medium}</Text>
+                                        </View>
+                                      )}
+                                    </View>
+                                    {item.description && (
+                                      <Text style={styles.textbookDescription} numberOfLines={2}>
+                                        {item.description}
+                                      </Text>
+                                    )}
+
+                                    {/* Action Buttons */}
+                                    <View style={styles.textbookActions}>
+                                      <Pressable
+                                        style={styles.previewBtn}
+                                        onPress={() => item.url && Linking.openURL(item.url)}
+                                      >
+                                        <FontAwesome name="eye" size={14} color="#16A34A" />
+                                        <Text style={styles.previewBtnText}>Preview</Text>
+                                      </Pressable>
+                                      <Pressable
+                                        style={[
+                                          styles.bookmarkBtn,
+                                          bookmarkedTextbooks.has(item.id) && styles.bookmarkedBtn
+                                        ]}
+                                        onPress={() => handleBookmark(item)}
+                                      >
+                                        <FontAwesome
+                                          name={bookmarkedTextbooks.has(item.id) ? "bookmark" : "bookmark-o"}
+                                          size={14}
+                                          color={bookmarkedTextbooks.has(item.id) ? "#ffffff" : "#6b7280"}
+                                        />
+                                      </Pressable>
+                                    </View>
                                   </View>
-                                </Pressable>
+                                </View>
                             ))}
                           </View>
                       );
@@ -466,22 +541,102 @@ const styles = StyleSheet.create({
   },
   textbookGridCard: {
     width: '32%',
-    padding: 12,
+    backgroundColor: '#ffffff',
     borderRadius: 12,
-    alignItems: 'center',
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
   },
+  textbookCover: {
+    width: '100%',
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textbookInfo: {
+    padding: 12,
+  },
+  textbookSubjectLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#16A34A',
+    marginBottom: 6,
+  },
   textbookGridTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1f2937',
-    textAlign: 'center',
+    marginBottom: 8,
+    minHeight: 36,
+  },
+  textbookMetadata: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
     marginBottom: 6,
-    minHeight: 32,
+  },
+  textbookBadge: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  textbookBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  textbookSmallBadge: {
+    backgroundColor: '#e5e7eb',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  textbookSmallBadgeText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  textbookDescription: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  textbookActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  previewBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dcfce7',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  previewBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#16A34A',
+  },
+  bookmarkBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+  },
+  bookmarkedBtn: {
+    backgroundColor: '#16A34A',
   },
 
   // Textbooks (old horizontal scroll - keep for backwards compatibility)
@@ -509,17 +664,6 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     textAlign: 'center',
     marginBottom: 8,
-  },
-  textbookBadge: {
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  textbookBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1f2937',
   },
   emptyTextbooksContainer: {
     padding: 40,
