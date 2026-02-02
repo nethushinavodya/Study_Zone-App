@@ -3,8 +3,8 @@ import React, { useEffect } from "react";
 import { FlatList, Text, View, Pressable, ScrollView, Linking, Modal, RefreshControl } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuth } from "../../hooks/useAuth";
-import { Paper } from "../../service/paperService";
-import { getUserBookmarks, removeBookmark as removeBookmarkFromDb } from "../../service/bookmarkService";
+import { Paper, Textbook } from "../../service/paperService";
+import { getUserBookmarks, removeBookmark as removeBookmarkFromDb, getUserTextbookBookmarks, removeTextbookBookmark } from "../../service/bookmarkService";
 import { logoutUser, deleteAccount } from "../../service/authService";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -14,6 +14,7 @@ export default function Profile() {
   const { user } = useAuth();
   const router = useRouter();
   const [bookmarks, setBookmarks] = React.useState<Paper[]>([]);
+  const [textbookBookmarks, setTextbookBookmarks] = React.useState<Textbook[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [settingsVisible, setSettingsVisible] = React.useState(false);
@@ -24,8 +25,11 @@ export default function Profile() {
     if (!refreshing) setLoading(true);
     try {
       const userBookmarks = await getUserBookmarks();
+      const userTextbookBookmarks = await getUserTextbookBookmarks();
       console.log("Loaded bookmarks:", userBookmarks);
+      console.log("Loaded textbook bookmarks:", userTextbookBookmarks);
       setBookmarks(userBookmarks);
+      setTextbookBookmarks(userTextbookBookmarks);
     } catch (error) {
       console.error("Error loading bookmarks:", error);
     } finally {
@@ -57,6 +61,24 @@ export default function Profile() {
         type: "success",
         text1: "Bookmark Removed",
         text2: "Paper removed from your bookmarks",
+      });
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to remove bookmark",
+      });
+    }
+  };
+
+  const removeTextbookBookmarkHandler = async (textbookId: string) => {
+    try {
+      await removeTextbookBookmark(textbookId);
+      setTextbookBookmarks(textbookBookmarks.filter((t) => t.id !== textbookId));
+      Toast.show({
+        type: "success",
+        text1: "Bookmark Removed",
+        text2: "Textbook removed from your bookmarks",
       });
     } catch (error) {
       Toast.show({
@@ -183,7 +205,15 @@ export default function Profile() {
                 {bookmarks.length}
               </Text>
               <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
-                Bookmarks
+                Papers
+              </Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: '#2563EB' }}>
+                {textbookBookmarks.length}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                Textbooks
               </Text>
             </View>
           </View>
@@ -282,6 +312,110 @@ export default function Profile() {
                       View Paper
                     </Text>
                   </Pressable>
+                </View>
+                );
+              }}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+
+        {/* Bookmarked Textbooks Section */}
+        <View className="mb-4">
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <MaterialIcons name="book" size={24} color="#2563EB" />
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#1F2937', marginLeft: 8 }}>
+              Bookmarked Textbooks
+            </Text>
+          </View>
+
+          {loading && !refreshing ? (
+            <View className="bg-white rounded-2xl p-8" style={{ alignItems: 'center' }}>
+              <MaterialIcons name="hourglass-empty" size={48} color="#2563EB" />
+              <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 12, textAlign: 'center' }}>
+                Loading textbooks...
+              </Text>
+            </View>
+          ) : textbookBookmarks.length === 0 ? (
+            <View className="bg-white rounded-2xl p-8" style={{ alignItems: 'center' }}>
+              <MaterialIcons name="book" size={48} color="#D1D5DB" />
+              <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 12, textAlign: 'center' }}>
+                No bookmarked textbooks yet
+              </Text>
+              <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 4, textAlign: 'center' }}>
+                Bookmark textbooks to access them quickly
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={textbookBookmarks}
+              keyExtractor={(item, index) => item?.id || `textbook-bookmark-${index}`}
+              renderItem={({ item: textbook }) => {
+                if (!textbook || !textbook.id) return null;
+
+                return (
+                <View className="bg-white rounded-2xl mb-3" style={{ overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
+                  {/* Textbook Cover */}
+                  <View style={{ height: 100, backgroundColor: textbook.coverColor || '#4CAF50', justifyContent: 'center', alignItems: 'center' }}>
+                    <MaterialIcons name="book" size={48} color="#FFFFFF" />
+                  </View>
+
+                  {/* Textbook Info */}
+                  <View style={{ padding: 16 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#2563EB', marginBottom: 4 }}>
+                          {textbook.subject}
+                        </Text>
+                      </View>
+                      <Pressable onPress={() => removeTextbookBookmarkHandler(textbook.id)} style={{ padding: 4 }}>
+                        <MaterialIcons name="bookmark" size={24} color="#2563EB" />
+                      </Pressable>
+                    </View>
+
+                    {/* Textbook Details */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>
+                      {textbook.grade && (
+                        <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 8, marginBottom: 6 }}>
+                          <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>
+                            Grade {textbook.grade}
+                          </Text>
+                        </View>
+                      )}
+                      {textbook.medium && (
+                        <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 6 }}>
+                          <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: '600' }}>
+                            {textbook.medium}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {textbook.description && (
+                      <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 12, lineHeight: 18 }}>
+                        {textbook.description}
+                      </Text>
+                    )}
+
+                    {/* Action Button */}
+                    <Pressable
+                      onPress={() => openPaper(textbook.url)}
+                      style={{
+                        backgroundColor: '#2563EB',
+                        paddingVertical: 10,
+                        paddingHorizontal: 16,
+                        borderRadius: 10,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <MaterialIcons name="visibility" size={18} color="#FFFFFF" />
+                      <Text style={{ color: '#FFFFFF', fontWeight: '600', marginLeft: 6, fontSize: 14 }}>
+                        View Textbook
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
                 );
               }}
