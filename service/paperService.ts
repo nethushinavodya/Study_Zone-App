@@ -75,6 +75,30 @@ export interface Textbook {
   authorId: string | null;
 }
 
+export async function uploadTextbook(
+  title: string,
+  subject: string,
+  grade: string,
+  medium: string,
+  driveUrl: string,
+  description?: string,
+  coverColor?: string
+) {
+  const docRef = await addDoc(collection(db, "textbooks"), {
+    title,
+    subject,
+    grade,
+    medium,
+    url: driveUrl,
+    description: description || "",
+    coverColor: coverColor || "#4CAF50",
+    createdAt: serverTimestamp(),
+    authorId: auth.currentUser?.uid ?? null,
+  });
+
+  return { id: docRef.id, url: driveUrl };
+}
+
 export async function getAllTextbooks(): Promise<Textbook[]> {
   const { getDocs, query, orderBy } = await import("firebase/firestore");
   const textbooksCollection = collection(db, "textbooks");
