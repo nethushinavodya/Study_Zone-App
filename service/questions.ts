@@ -10,14 +10,12 @@ import {
   query,
   QuerySnapshot,
   serverTimestamp,
-  setDoc,
-  updateDoc,
   runTransaction,
   getDoc,
-   getDocs,
+  getDocs,
 } from "firebase/firestore";
 import { auth, db, storage } from "./firebase";
-import { ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { signInAnonymously } from "firebase/auth";
 
 const FIRESTORE_LIMIT = 1048487;
@@ -47,9 +45,9 @@ async function tryCompressNative(uri: string) {
       for (const q of qualities) {
         try {
           const result = await ImageManipulator.manipulateAsync(
-            uri,
-            [{ resize: { width: w } }],
-            { compress: q, format: ImageManipulator.SaveFormat.JPEG },
+              uri,
+              [{ resize: { width: w } }],
+              { compress: q, format: ImageManipulator.SaveFormat.JPEG },
           );
           const b64 = await FileSystem.readAsStringAsync(result.uri, { encoding: "base64" });
           const dataUrl = `data:image/jpeg;base64,${b64}`;
@@ -193,7 +191,7 @@ export async function postQuestion(text: string, imageUri?: string) {
 }
 
 export function listenQuestions(
-  onUpdate: (items: Record<string, any>[]) => void,
+    onUpdate: (items: Record<string, any>[]) => void,
 ) {
   const q = query(collection(db, "questions"), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
@@ -203,9 +201,9 @@ export function listenQuestions(
 }
 
 export async function postAnswer(
-  questionId: string,
-  text?: string,
-  imageUri?: string,
+    questionId: string,
+    text?: string,
+    imageUri?: string,
 ) {
   console.log('postAnswer called for', questionId, 'imageUri:', imageUri);
   let imageBase64: string | null = null;
@@ -268,25 +266,25 @@ export async function postAnswer(
   }
 
   const ansRef = await addDoc(
-    collection(db, "questions", questionId, "answers"),
-    {
-      text: text || null,
-      imageBase64,
-      userId: auth.currentUser?.uid ?? null,
-      createdAt: serverTimestamp(),
-    },
+      collection(db, "questions", questionId, "answers"),
+      {
+        text: text || null,
+        imageBase64,
+        userId: auth.currentUser?.uid ?? null,
+        createdAt: serverTimestamp(),
+      },
   );
   console.log('Created answer doc', ansRef.id, 'imageBase64:', !!imageBase64);
   return ansRef.id;
 }
 
 export function listenAnswers(
-  questionId: string,
-  onUpdate: (items: Record<string, any>[]) => void,
+    questionId: string,
+    onUpdate: (items: Record<string, any>[]) => void,
 ) {
   const q = query(
-    collection(db, "questions", questionId, "answers"),
-    orderBy("createdAt", "asc"),
+      collection(db, "questions", questionId, "answers"),
+      orderBy("createdAt", "asc"),
   );
   return onSnapshot(q, (snap: QuerySnapshot) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
@@ -296,8 +294,8 @@ export function listenAnswers(
 
 export async function fetchAnswersOnce(questionId: string) {
   const q = query(
-    collection(db, "questions", questionId, "answers"),
-    orderBy("createdAt", "asc"),
+      collection(db, "questions", questionId, "answers"),
+      orderBy("createdAt", "asc"),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
@@ -331,7 +329,7 @@ export async function hasLikedQuestion(questionId: string) {
     const likeDocRef = docRef(db, "questions", questionId, "likes", uid);
     const snap = await getDoc(likeDocRef);
     return snap.exists();
-  } catch (e) {
+  } catch {
     return false;
   }
 }
