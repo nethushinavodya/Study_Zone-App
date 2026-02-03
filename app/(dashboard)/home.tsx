@@ -1,7 +1,5 @@
-import { useLoader } from "@/hooks/useLoader";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -10,17 +8,23 @@ import {
   Linking,
   Modal,
   Platform,
+  Animated,
+  Easing,
+  Image,
+  TextInput,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Picker } from "@react-native-picker/picker";
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   listenQuestions,
-} from "../../service/questions";
+} from "@/service/questions";
 import { onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
-import { db } from "../../service/firebase";
-import { addTextbookBookmark, removeTextbookBookmark, isTextbookBookmarked } from "../../service/bookmarkService";
+import { db } from "@/service/firebase";
+import { addTextbookBookmark, removeTextbookBookmark, isTextbookBookmarked } from "@/service/bookmarkService";
 import Toast from 'react-native-toast-message';
+import { useLoader } from "@/hooks/useLoader";
 
 const Home = () => {
   const router = useRouter();
@@ -36,6 +40,114 @@ const Home = () => {
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterMedium, setFilterMedium] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any>({
+    textbooks: [],
+    papers: [],
+    questions: [],
+  });
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Animation refs for textbook slide-in
+  const textbookAnimations = useRef<{ [key: string]: Animated.Value }>({}).current;
+
+  // Animation refs for interactive header
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(-50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const educationRotateAnim = useRef(new Animated.Value(0)).current;
+  const educationBounceAnim = useRef(new Animated.Value(0)).current;
+
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return { text: "Good Morning", emoji: "🌅" };
+    if (hour < 17) return { text: "Good Afternoon", emoji: "☀️" };
+    if (hour < 21) return { text: "Good Evening", emoji: "🌆" };
+    return { text: "Good Night", emoji: "🌙" };
+  };
+
+  const greeting = getGreeting();
+
+  // Start animations when component mounts
+  useEffect(() => {
+    // Header fade and slide in
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        easing: Easing.out(Easing.back(1.5)),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Continuous pulse animation for emoji
+    Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+    ).start();
+
+    // Education image floating/bounce animation
+    Animated.loop(
+        Animated.sequence([
+          Animated.timing(educationBounceAnim, {
+            toValue: 1,
+            duration: 2000,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(educationBounceAnim, {
+            toValue: 0,
+            duration: 2000,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ])
+    ).start();
+
+    // Education image gentle rotation
+    Animated.loop(
+        Animated.sequence([
+          Animated.timing(educationRotateAnim, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(educationRotateAnim, {
+            toValue: 0,
+            duration: 3000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+    ).start();
+  }, []);
+
 
   useEffect(() => {
     let first = true;
@@ -56,7 +168,7 @@ const Home = () => {
       setPapers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     });
 
-    // Load recent textbooks (limit to 4)
+    // Load recent textbooks
     const textbooksQuery = query(collection(db, "textbooks"), orderBy("createdAt", "desc"));
     const unsubTextbooks = onSnapshot(textbooksQuery, (snap) => {
       const textbooksData = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
@@ -91,6 +203,26 @@ const Home = () => {
 
     setFilteredTextbooks(filtered);
   }, [textbooks, filterGrade, filterSubject, filterMedium]);
+
+  // Trigger slide-in animations when textbooks are loaded or filtered
+  useEffect(() => {
+    if (filteredTextbooks.length > 0) {
+      // Reset all animations first
+      Object.keys(textbookAnimations).forEach(key => {
+        textbookAnimations[key].setValue(0);
+      });
+
+      // Calculate total number of rows
+      const totalRows = Math.ceil(filteredTextbooks.length / 3);
+
+      // Trigger animations for each row with staggered delay
+      for (let i = 0; i < totalRows; i++) {
+        setTimeout(() => {
+          animateRow(i, 0);
+        }, i * 100); // 100ms delay between each row
+      }
+    }
+  }, [filteredTextbooks]);
 
   // Load bookmark status for all textbooks
   useEffect(() => {
@@ -149,36 +281,148 @@ const Home = () => {
     setFilterMedium('');
   };
 
+  // Search functionality
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+
+    if (text.trim() === '') {
+      setShowSearchResults(false);
+      return;
+    }
+
+    const query = text.toLowerCase();
+
+    const filteredTextbooks = textbooks.filter(t =>
+        t.subject?.toLowerCase().includes(query) ||
+        t.description?.toLowerCase().includes(query) ||
+        t.grade?.toString().includes(query)
+    );
+
+    const filteredPapers = papers.filter(p =>
+        p.title?.toLowerCase().includes(query) ||
+        p.examType?.toLowerCase().includes(query) ||
+        p.grade?.toString().includes(query)
+    );
+
+    const filteredQuestions = questions.filter(q =>
+        q.question?.toLowerCase().includes(query) ||
+        q.userName?.toLowerCase().includes(query)
+    );
+
+    setSearchResults({
+      textbooks: filteredTextbooks,
+      papers: filteredPapers,
+      questions: filteredQuestions,
+    });
+
+    setShowSearchResults(true);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowSearchResults(false);
+  };
+
+  const formatQuestionTime = (createdAt: any) => {
+    const toDate = (v: any): Date | null => {
+      if (!v) return null;
+      if (v?.toDate) return v.toDate();
+      if (v instanceof Date) return v;
+      if (typeof v === 'number') return new Date(v);
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    const d = toDate(createdAt);
+    if (!d) return '';
+
+    const diffMs = Date.now() - d.getTime();
+    if (diffMs < 0) return d.toLocaleDateString();
+
+    const sec = Math.floor(diffMs / 1000);
+    const min = Math.floor(sec / 60);
+    const hr = Math.floor(min / 60);
+    const day = Math.floor(hr / 24);
+
+    if (sec < 15) return 'Just now';
+    if (min < 1) return `${sec}s ago`;
+    if (min < 60) return `${min}m ago`;
+    if (hr < 24) return `${hr}h ago`;
+    if (day < 7) return `${day}d ago`;
+
+    return d.toLocaleDateString();
+  };
+
+  // Helper function to get animation value for each row
+  const getRowAnimation = (rowIndex: number) => {
+    const key = `row-${rowIndex}`;
+    if (!textbookAnimations[key]) {
+      textbookAnimations[key] = new Animated.Value(0);
+    }
+    return textbookAnimations[key];
+  };
+
+  // Trigger slide-in animation for a row
+  const animateRow = (rowIndex: number, delay: number = 0) => {
+    const animation = getRowAnimation(rowIndex);
+    animation.setValue(0); // Reset to start position
+
+    Animated.timing(animation, {
+      toValue: 1,
+      duration: 600,
+      delay: delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
 
   return (
       <View style={{ flex: 1 }}>
-        <ScrollView style={styles.container}>
-          {/* Hero Section */}
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+          {/* Top Banner Section */}
+          <LinearGradient
+              colors={['#16A34A', '#15803d']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.bannerSection}
+          >
+            <View style={styles.bannerContent}>
+              <View>
+                <Text style={styles.bannerGreeting}>{greeting.text}! 👋</Text>
+                <Text style={styles.bannerSubtitle}>Ready to learn something new?</Text>
+              </View>
+            </View>
+
+            {/* Search Bar in Banner */}
+            <View style={styles.bannerSearchContainer}>
+              <FontAwesome name="search" size={16} color="#dcfce7" />
+              <TextInput
+                  style={styles.bannerSearchInputField}
+                  placeholder="Search textbooks, papers..."
+                  placeholderTextColor="#dcfce7"
+                  value={searchQuery}
+                  onChangeText={handleSearch}
+                  onFocus={() => searchQuery && setShowSearchResults(true)}
+              />
+              {searchQuery && (
+                  <Pressable onPress={clearSearch}>
+                    <FontAwesome name="times" size={14} color="#dcfce7" />
+                  </Pressable>
+              )}
+            </View>
+          </LinearGradient>
+
+          {/* ===== HERO SECTION: Education GIF ===== */}
           <View style={styles.heroSection}>
-            <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>Welcome to Study Zone 📚</Text>
-              <Text style={styles.heroSubtitle}>Your learning companion for success</Text>
-            </View>
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <FontAwesome name="file-pdf-o" size={24} color="#16A34A" />
-                <Text style={styles.statNumber}>{papers.length}</Text>
-                <Text style={styles.statLabel}>Papers</Text>
-              </View>
-              <View style={styles.statCard}>
-                <FontAwesome name="book" size={24} color="#2563eb" />
-                <Text style={styles.statNumber}>{textbooks.length}</Text>
-                <Text style={styles.statLabel}>Textbooks</Text>
-              </View>
-              <View style={styles.statCard}>
-                <FontAwesome name="question-circle" size={24} color="#dc2626" />
-                <Text style={styles.statNumber}>{questions.length}</Text>
-                <Text style={styles.statLabel}>Q&A</Text>
-              </View>
-            </View>
+            <Image
+                source={require("@/assets/images/Education1.gif")}
+                style={[styles.heroImage, { transform: [{ scale: 1 }] }]}
+                resizeMode="cover"
+                fadeDuration={1000}
+            />
           </View>
 
-          {/* Textbooks Section with 3 Columns */}
+          {/* ===== TEXTBOOKS SECTION ===== */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>📖 Textbooks</Text>
@@ -200,78 +444,133 @@ const Home = () => {
                 </View>
             )}
 
-            <View style={styles.textbooksGrid}>
-              {filteredTextbooks.length > 0 ? (
-                  filteredTextbooks.map((book, index) => {
-                    if (index % 3 === 0) {
-                      const row = filteredTextbooks.slice(index, index + 3);
-                      return (
-                          <View key={`row-${index}`} style={styles.textbooksRow}>
-                            {row.map((item) => (
-                                <View
-                                    key={item.id}
-                                    style={styles.textbookGridCard}
-                                >
-                                  <View style={[styles.textbookCover, { backgroundColor: item.coverColor || '#4CAF50' }]}>
-                                    <FontAwesome name="book" size={32} color="#ffffff" />
-                                  </View>
-                                  <View style={styles.textbookInfo}>
-                                    <Text style={styles.textbookSubjectLabel} numberOfLines={1}>{item.subject}</Text>
-                                    <View style={styles.textbookMetadata}>
-                                      <View style={styles.textbookSmallBadge}>
-                                        <Text style={styles.textbookSmallBadgeText}>Grade {item.grade}</Text>
-                                      </View>
-                                      {item.medium && (
-                                        <View style={styles.textbookSmallBadge}>
-                                          <Text style={styles.textbookSmallBadgeText}>{item.medium}</Text>
-                                        </View>
-                                      )}
-                                    </View>
-                                    {item.description && (
-                                      <Text style={styles.textbookDescription} numberOfLines={2}>
-                                        {item.description}
-                                      </Text>
-                                    )}
+            {/* Textbooks Grid */}
+            {(() => {
+              const englishBooks = filteredTextbooks.filter((book: any) =>
+                  book.medium?.toLowerCase().trim() === 'english'
+              );
+              const sinhalaBooks = filteredTextbooks.filter((book: any) =>
+                  book.medium?.toLowerCase().trim() === 'sinhala'
+              );
+              const otherBooks = filteredTextbooks.filter((book: any) => {
+                const medium = book.medium?.toLowerCase().trim();
+                return medium && medium !== 'english' && medium !== 'sinhala';
+              });
 
-                                    {/* Action Buttons */}
-                                    <View style={styles.textbookActions}>
-                                      <Pressable
-                                        style={styles.previewBtn}
-                                        onPress={() => item.url && Linking.openURL(item.url)}
-                                      >
-                                        <FontAwesome name="eye" size={14} color="#16A34A" />
-                                        <Text style={styles.previewBtnText}>Preview</Text>
-                                      </Pressable>
-                                      <Pressable
-                                        style={[
-                                          styles.bookmarkBtn,
-                                          bookmarkedTextbooks.has(item.id) && styles.bookmarkedBtn
-                                        ]}
-                                        onPress={() => handleBookmark(item)}
-                                      >
-                                        <FontAwesome
-                                          name={bookmarkedTextbooks.has(item.id) ? "bookmark" : "bookmark-o"}
-                                          size={14}
-                                          color={bookmarkedTextbooks.has(item.id) ? "#ffffff" : "#6b7280"}
-                                        />
-                                      </Pressable>
-                                    </View>
-                                  </View>
-                                </View>
-                            ))}
-                          </View>
-                      );
-                    }
-                    return null;
-                  })
-              ) : (
-                  <View style={styles.emptyTextbooksContainer}>
-                    <FontAwesome name="book" size={48} color="#d1d5db" />
-                    <Text style={styles.emptyTextbooksText}>No textbooks found</Text>
-                    <Text style={styles.emptyTextbooksSubtext}>Try adjusting your filters</Text>
-                  </View>
-              )}
-            </View>
+              const renderTextbookGrid = (books: any[], mediumLabel: string, mediumEmoji: string) => {
+                if (books.length === 0) return null;
+
+                return (
+                    <View key={mediumLabel} style={{ marginBottom: 24 }}>
+                      <View style={styles.mediumSectionHeader}>
+                        <Text style={styles.mediumSectionTitle}>
+                          {mediumEmoji} {mediumLabel} Medium
+                        </Text>
+                      </View>
+
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.textbooksHorizontalScroll}
+                        contentContainerStyle={styles.textbooksHorizontalContent}
+                      >
+                        {books.map((item, index) => {
+                          const cardColor = item.coverColor || '#4CAF50';
+                          const isSinhala = item.medium?.toLowerCase() === 'sinhala';
+                          const isEnglish = item.medium?.toLowerCase() === 'english';
+
+                          return (
+                            <View
+                              key={item.id}
+                              style={[
+                                styles.textbookGridCard,
+                                { backgroundColor: cardColor }
+                              ]}
+                            >
+                                          {/* Medium Badge */}
+                                          {(isSinhala || isEnglish) && (
+                                              <View style={styles.mediumBadgeContainer}>
+                                                <View style={[
+                                                  styles.mediumBadge,
+                                                  isSinhala ? styles.sinhalaBadge : styles.englishBadge
+                                                ]}>
+                                                  <Text style={styles.mediumBadgeText}>
+                                                    {isSinhala ? '📗 සිංහල' : '📘 English'}
+                                                  </Text>
+                                                </View>
+                                              </View>
+                                          )}
+
+                                          <View style={styles.textbookCover}>
+                                            <FontAwesome name="book" size={36} color="#ffffff" style={{ opacity: 0.9 }} />
+                                          </View>
+                                          <View style={styles.textbookInfo}>
+                                            <Text style={styles.textbookSubjectLabel} numberOfLines={2}>{item.title}</Text>
+                                            <View style={styles.textbookMetadata}>
+                                              <View style={styles.textbookGradeBadge}>
+                                                <Text style={styles.textbookGradeBadgeText}>Grade {item.grade}</Text>
+                                              </View>
+                                            </View>
+                                            {item.description && (
+                                                <Text style={styles.textbookDescription} numberOfLines={2}>
+                                                  {item.description}
+                                                </Text>
+                                            )}
+
+                                            {/* Action Buttons */}
+                                            <View style={styles.textbookActions}>
+                                              <Pressable
+                                                  style={styles.previewBtn}
+                                                  onPress={() => item.url && Linking.openURL(item.url)}
+                                              >
+                                                <FontAwesome name="eye" size={12} color="#ffffff" />
+                                                <Text style={styles.previewBtnText}>Preview</Text>
+                                              </Pressable>
+                                              <Pressable
+                                                  style={[
+                                                    styles.bookmarkBtn,
+                                                    bookmarkedTextbooks.has(item.id) && styles.bookmarkedBtn
+                                                  ]}
+                                                  onPress={() => handleBookmark(item)}
+                                              >
+                                                <FontAwesome
+                                                    name={bookmarkedTextbooks.has(item.id) ? "bookmark" : "bookmark-o"}
+                                                    size={12}
+                                                    color={bookmarkedTextbooks.has(item.id) ? "#ffffff" : "#6b7280"}
+                                                />
+                                              </Pressable>
+                                            </View>
+                                          </View>
+                                        </View>
+                                    );
+                        })}
+                      </ScrollView>
+                    </View>
+                );
+              };
+
+              return (
+                  <>
+                    {/* English Medium Section */}
+                    {renderTextbookGrid(englishBooks, 'English', '📘')}
+
+                    {/* Sinhala Medium Section */}
+                    {renderTextbookGrid(sinhalaBooks, 'Sinhala', '📗')}
+
+                    {/* Other Medium Section */}
+                    {otherBooks.length > 0 && renderTextbookGrid(otherBooks, 'Other', '📚')}
+
+                    {/* No textbooks message */}
+                    {filteredTextbooks.length === 0 && (
+                        <View style={styles.emptyTextbooksContainer}>
+                          <FontAwesome name="book" size={48} color="#d1d5db" />
+                          <Text style={styles.emptyTextbooksText}>No textbooks found</Text>
+                          <Text style={styles.emptyTextbooksSubtext}>Try adjusting your filters</Text>
+                        </View>
+                    )}
+                  </>
+              );
+            })()}
           </View>
 
           {/* Recent Papers Section */}
@@ -311,7 +610,163 @@ const Home = () => {
                 </View>
             ))}
           </View>
+
+          {/* Q&A Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>❓ Questions & Answers</Text>
+              <Pressable onPress={() => router.push('/qna')}>
+                <Text style={styles.seeAllText}>See All</Text>
+              </Pressable>
+            </View>
+            {questions.slice(0, 3).map((question) => (
+                <View key={question.id} style={styles.card}>
+                  <View style={styles.questionHeader}>
+                    <View style={styles.avatarCircle}>
+                      <FontAwesome name="user" size={18} color="#16A34A" />
+                    </View>
+                    <View style={styles.questionMeta}>
+                      <Text style={styles.questionAuthor}>{question.userName || 'Anonymous'}</Text>
+                      <Text style={styles.questionTime}>
+                        {formatQuestionTime(question.createdAt) || ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.qText}>{question.question}</Text>
+                  {question.image && (
+                      <Image
+                          source={{ uri: question.image }}
+                          style={styles.qImage}
+                      />
+                  )}
+                  <Pressable
+                      onPress={() => router.push(`/qna?id=${question.id}`)}
+                      style={styles.viewRepliesBtn}
+                  >
+                    <FontAwesome name="comments" size={14} color="#2563eb" />
+                    <Text style={styles.viewRepliesText}>
+                      {question.replyCount ? `${question.replyCount} replies` : 'View Replies'}
+                    </Text>
+                  </Pressable>
+                </View>
+            ))}
+          </View>
         </ScrollView>
+
+        {/* Search Results Modal */}
+        <Modal
+            visible={showSearchResults}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={clearSearch}
+        >
+          <Pressable
+              style={styles.searchResultsOverlay}
+              onPress={clearSearch}
+          >
+            <View style={styles.searchResultsContainer}>
+              <View style={styles.searchResultsHeader}>
+                <Text style={styles.searchResultsTitle}>Search Results</Text>
+                <Pressable onPress={clearSearch}>
+                  <FontAwesome name="times" size={24} color="#6b7280" />
+                </Pressable>
+              </View>
+
+              <ScrollView style={styles.searchResultsContent} showsVerticalScrollIndicator={true}>
+                {/* Textbooks Results */}
+                {searchResults.textbooks.length > 0 && (
+                    <>
+                      <Text style={styles.searchResultsCategory}>📖 Textbooks</Text>
+                      {searchResults.textbooks.map((book: any) => (
+                          <Pressable
+                              key={book.id}
+                              style={styles.searchResultItem}
+                              onPress={() => {
+                                if (book.url) {
+                                  Linking.openURL(book.url);
+                                }
+                                clearSearch();
+                              }}
+                          >
+                            <View style={styles.searchResultIcon}>
+                              <FontAwesome name="book" size={16} color="#16A34A" />
+                            </View>
+                            <View style={styles.searchResultInfo}>
+                              <Text style={styles.searchResultTitle}>{book.subject}</Text>
+                              <Text style={styles.searchResultSubtitle}>Grade {book.grade} • {book.medium}</Text>
+                            </View>
+                            <FontAwesome name="chevron-right" size={14} color="#9ca3af" />
+                          </Pressable>
+                      ))}
+                    </>
+                )}
+
+                {/* Papers Results */}
+                {searchResults.papers.length > 0 && (
+                    <>
+                      <Text style={styles.searchResultsCategory}>📄 Papers</Text>
+                      {searchResults.papers.map((paper: any) => (
+                          <Pressable
+                              key={paper.id}
+                              style={styles.searchResultItem}
+                              onPress={() => {
+                                Linking.openURL(paper.url);
+                                clearSearch();
+                              }}
+                          >
+                            <View style={styles.searchResultIcon}>
+                              <FontAwesome name="file-pdf-o" size={16} color="#0284C7" />
+                            </View>
+                            <View style={styles.searchResultInfo}>
+                              <Text style={styles.searchResultTitle}>{paper.title}</Text>
+                              <Text style={styles.searchResultSubtitle}>{paper.examType} • Grade {paper.grade}</Text>
+                            </View>
+                            <FontAwesome name="chevron-right" size={14} color="#9ca3af" />
+                          </Pressable>
+                      ))}
+                    </>
+                )}
+
+                {/* Questions Results */}
+                {searchResults.questions.length > 0 && (
+                    <>
+                      <Text style={styles.searchResultsCategory}>❓ Questions</Text>
+                      {searchResults.questions.map((question: any) => (
+                          <Pressable
+                              key={question.id}
+                              style={styles.searchResultItem}
+                              onPress={() => {
+                                router.push(`/qna?id=${question.id}`);
+                                clearSearch();
+                              }}
+                          >
+                            <View style={styles.searchResultIcon}>
+                              <FontAwesome name="question-circle" size={16} color="#D97706" />
+                            </View>
+                            <View style={styles.searchResultInfo}>
+                              <Text style={styles.searchResultTitle} numberOfLines={1}>{question.question}</Text>
+                              <Text style={styles.searchResultSubtitle}>by {question.userName || 'Anonymous'}</Text>
+                            </View>
+                            <FontAwesome name="chevron-right" size={14} color="#9ca3af" />
+                          </Pressable>
+                      ))}
+                    </>
+                )}
+
+                {/* No Results */}
+                {searchResults.textbooks.length === 0 &&
+                    searchResults.papers.length === 0 &&
+                    searchResults.questions.length === 0 && (
+                        <View style={styles.noSearchResults}>
+                          <FontAwesome name="search" size={48} color="#d1d5db" />
+                          <Text style={styles.noSearchResultsText}>No results found</Text>
+                          <Text style={styles.noSearchResultsSubtext}>Try a different search term</Text>
+                        </View>
+                    )}
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* Sidebar Filter Modal */}
         <Modal
@@ -422,56 +877,74 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f0fdf4',
   },
-  // Hero Section
-  heroSection: {
-    backgroundColor: '#16A34A',
-    padding: 24,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    marginBottom: 20,
+
+  // Banner Section - Green Gradient
+  bannerSection: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 16,
   },
-  heroContent: {
-    marginBottom: 20,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    fontSize: 16,
-    color: '#dcfce7',
-  },
-  statsRow: {
+  bannerContent: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statCard: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 16,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    width: '30%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: 16,
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginTop: 8,
+  bannerGreeting: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 4,
+    letterSpacing: -0.5,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+  bannerSubtitle: {
+    fontSize: 14,
+    color: '#dcfce7',
+    fontWeight: '500',
+  },
+  bannerEmoji: {
+    fontSize: 40,
+  },
+  bannerSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  bannerSearchInputField: {
+    flex: 1,
+    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '500',
+    padding: 0,
   },
 
-  // Section
+  // ===== HERO SECTION STYLES =====
+  heroSection: {
+    marginHorizontal: 12,
+    marginVertical: 12,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#bffbd0',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+    height: 320,
+    backgroundColor: '#bffbd0',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    backgroundColor: '#bffbd0',
+  },
+  // Section Styles
   section: {
     marginBottom: 24,
     paddingHorizontal: 16,
@@ -484,13 +957,26 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  mediumSectionHeader: {
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb',
+  },
+  mediumSectionTitle: {
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1f2937',
+    color: '#374151',
+    letterSpacing: -0.3,
   },
   seeAllText: {
     fontSize: 14,
     color: '#16A34A',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   filterButton: {
     flexDirection: 'row',
@@ -498,13 +984,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#dcfce7',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
+    borderRadius: 10,
+    gap: 8,
   },
   filterButtonText: {
     fontSize: 14,
     color: '#16A34A',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   activeFilters: {
     flexDirection: 'row',
@@ -530,25 +1016,51 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Textbooks Grid
-  textbooksGrid: {
+  // Textbooks Horizontal Scroll
+  textbooksHorizontalScroll: {
     marginBottom: 8,
   },
-  textbooksRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+  textbooksHorizontalContent: {
+    paddingRight: 16,
+    gap: 12,
   },
   textbookGridCard: {
-    width: '32%',
+    width: 160,
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: 'visible',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+  },
+  mediumBadgeContainer: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 10,
+  },
+  mediumBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  sinhalaBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  englishBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  mediumBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#1f2937',
   },
   textbookCover: {
     width: '100%',
@@ -557,20 +1069,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   textbookInfo: {
-    padding: 12,
+    padding: 10,
+    backgroundColor: '#f9fafb',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   textbookSubjectLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#16A34A',
-    marginBottom: 6,
-  },
-  textbookGridTitle: {
-    fontSize: 13,
-    fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 8,
+    marginBottom: 6,
+    letterSpacing: -0.2,
     minHeight: 36,
+    lineHeight: 18,
   },
   textbookMetadata: {
     flexDirection: 'row',
@@ -578,92 +1089,58 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 6,
   },
-  textbookBadge: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  textbookBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  textbookSmallBadge: {
+  textbookGradeBadge: {
     backgroundColor: '#e5e7eb',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  textbookSmallBadgeText: {
+  textbookGradeBadgeText: {
     fontSize: 10,
-    fontWeight: '500',
-    color: '#6b7280',
+    fontWeight: '600',
+    color: '#374151',
   },
   textbookDescription: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6b7280',
-    marginTop: 6,
-    lineHeight: 16,
+    marginTop: 4,
+    lineHeight: 14,
   },
   textbookActions: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+    gap: 6,
+    marginTop: 10,
   },
   previewBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#dcfce7',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    backgroundColor: '#16A34A',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
     borderRadius: 8,
-    gap: 6,
+    gap: 5,
   },
   previewBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#16A34A',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: -0.1,
   },
   bookmarkBtn: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#e5e7eb',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
   },
   bookmarkedBtn: {
     backgroundColor: '#16A34A',
-  },
-
-  // Textbooks (old horizontal scroll - keep for backwards compatibility)
-  horizontalScroll: {
-    marginBottom: 8,
-  },
-  textbookCard: {
-    width: 140,
-    padding: 16,
-    borderRadius: 16,
-    marginRight: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  textbookIcon: {
-    marginBottom: 12,
-  },
-  textbookTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    textAlign: 'center',
-    marginBottom: 8,
+    borderColor: '#16A34A',
   },
   emptyTextbooksContainer: {
     padding: 40,
@@ -676,6 +1153,98 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   emptyTextbooksSubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 4,
+  },
+
+  // Search Results Modal
+  searchResultsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-start',
+    paddingTop: 60,
+  },
+  searchResultsContainer: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 12,
+    marginVertical: 10,
+    borderRadius: 16,
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  searchResultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  searchResultsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  searchResultsContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchResultsCategory: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#16A34A',
+    marginLeft: 16,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#f0f4f8',
+  },
+  searchResultIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  searchResultSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  noSearchResults: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  noSearchResultsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 12,
+  },
+  noSearchResultsSubtext: {
     fontSize: 14,
     color: '#9ca3af',
     marginTop: 4,
@@ -769,65 +1338,60 @@ const styles = StyleSheet.create({
   // Papers
   paperCard: {
     backgroundColor: '#ffffff',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f0f4f8',
   },
   paperIcon: {
     backgroundColor: '#dcfce7',
-    padding: 10,
-    borderRadius: 10,
-    marginRight: 12,
+    padding: 12,
+    borderRadius: 12,
+    marginRight: 14,
   },
   paperContent: {
     flex: 1,
   },
   paperTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   paperBadges: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   miniPaperBadge: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   miniPaperBadgeText: {
-    fontSize: 10,
-    color: '#6b7280',
+    fontSize: 11,
+    color: '#64748b',
     fontWeight: '600',
+    letterSpacing: -0.2,
   },
   paperViewBtn: {
     backgroundColor: '#dcfce7',
-    padding: 10,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 10,
   },
 
-  // Q&A Section
-  askQuestionBtn: {
-    backgroundColor: '#16A34A',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  askQuestionText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  // Q&A
   card: {
     marginBottom: 16,
     backgroundColor: "#fff",
