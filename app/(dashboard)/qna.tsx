@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
@@ -42,6 +43,7 @@ export default function QnA() {
   );
   const [likedMap, setLikedMap] = React.useState<Record<string, boolean>>({});
   const [fullScreenImage, setFullScreenImage] = React.useState<string | null>(null);
+  const [replySubmittingId, setReplySubmittingId] = React.useState<string | null>(null);
   const postsRef = React.useRef<any[]>([]);
   const updatePosts = (nextOrUpdater: any) => {
     setPosts((prev) => {
@@ -108,6 +110,9 @@ export default function QnA() {
 
   const submitReply = async (postId: string) => {
     if (!replyText.trim() && !replyImage) return;
+    if (replySubmittingId === postId) return;
+
+    setReplySubmittingId(postId);
     try {
       // ensure there's an authenticated user (anonymous if needed)
       if (!auth.currentUser) {
@@ -128,7 +133,10 @@ export default function QnA() {
       }
     } catch (e) {
       // ignore
+    } finally {
+      setReplySubmittingId((cur) => (cur === postId ? null : cur));
     }
+
     // keep replies collapsed so the user sees the "Show more" control when there are >2 replies
     setExpandedIds((s) => ({ ...s, [postId]: false }));
     setReplyingId(null);
@@ -333,17 +341,29 @@ export default function QnA() {
                           <View className="flex-row">
                             <Pressable
                                 onPress={() => submitReply(item.id)}
+                                disabled={replySubmittingId === item.id}
                                 className="bg-green-600 px-4 py-2 rounded-2xl mr-3"
+                                style={{ opacity: replySubmittingId === item.id ? 0.7 : 1 }}
                             >
-                              <Text className="text-white">Submit</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                {replySubmittingId === item.id ? (
+                                  <ActivityIndicator size="small" color="#fff" />
+                                ) : null}
+                                <Text style={{ color: 'white', marginLeft: replySubmittingId === item.id ? 8 : 0 }}>
+                                  {replySubmittingId === item.id ? 'Submitting…' : 'Submit'}
+                                </Text>
+                              </View>
                             </Pressable>
                             <Pressable
                                 onPress={() => {
+                                  if (replySubmittingId === item.id) return;
                                   setReplyingId(null);
                                   setReplyText("");
                                   setReplyImage(undefined);
                                 }}
+                                disabled={replySubmittingId === item.id}
                                 className="bg-gray-200 px-4 py-2 rounded-2xl"
+                                style={{ opacity: replySubmittingId === item.id ? 0.7 : 1 }}
                             >
                               <Text>Cancel</Text>
                             </Pressable>
