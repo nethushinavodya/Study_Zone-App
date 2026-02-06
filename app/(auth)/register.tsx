@@ -1,5 +1,5 @@
 import { useLoader } from "@/hooks/useLoader";
-import { registerUser } from "@/service/authService";
+import { registerUser, signInWithGoogle } from "@/service/authService";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -71,8 +71,7 @@ const Register = () => {
         if (idToken) {
           showLoader("Signing in with Google...");
           try {
-            const credential = GoogleAuthProvider.credential(idToken);
-            await signInWithCredential(auth, credential);
+            await signInWithGoogle(idToken);
             router.replace("/(dashboard)/home");
           } catch (err) {
             console.log("Google sign-in error:", err);

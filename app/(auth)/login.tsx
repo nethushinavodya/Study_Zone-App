@@ -1,5 +1,5 @@
 import { useLoader } from "@/hooks/useLoader";
-import { loginUser } from "@/service/authService";
+import { loginUser, signInWithGoogle } from "@/service/authService";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -25,7 +25,6 @@ import {
 } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import Toast from "react-native-toast-message";
 
 const Login = () => {
@@ -96,8 +95,8 @@ const Login = () => {
         if (idToken) {
           showLoader("Signing in with Google...");
           try {
-            const credential = GoogleAuthProvider.credential(idToken);
-            await signInWithCredential(auth, credential);
+            // Use centralized auth service to sign in and upsert user document
+            await signInWithGoogle(idToken);
             router.replace("/(dashboard)/home");
           } catch (err) {
             console.log("Google sign-in error:", err);

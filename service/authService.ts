@@ -4,8 +4,10 @@ import {
     signInWithEmailAndPassword,
     updateProfile,
     deleteUser,
+    GoogleAuthProvider,
+    signInWithCredential,
 } from "firebase/auth";
-import { doc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, collection, query, where, getDocs, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 export const registerUser = async (
@@ -74,3 +76,41 @@ export const deleteAccount = async () => {
   await AsyncStorage.clear();
 };
 
+// Sign in (or register) a user using Google ID token.
+// - idToken: ID token obtained from Google (expo-auth-session)
+// Behavior:
+// 1. Create Firebase credential and sign in.
+// 2. Ensure a Firestore `users/{uid}` document exists (upsert).
+// 3. Return the Firebase user object.
+export const signInWithGoogle = async (idToken: string) => {
+  if (!idToken) throw new Error("Missing Google ID token");
+  const credential = GoogleAuthProvider.credential(idToken);
+  const userCredential = await signInWithCredential(auth, credential);
+  const user = userCredential.user;
+
+  if (!user) throw new Error("Failed to sign in with Google");
+
+  const userDocRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userDocRef);
+
+  if (!userSnap.exists()) {
+    // Create a minimal user document for new Google sign-ins
+    await setDoc(userDocRef, {
+      name: user.displayName || user.email || "",
+      email: user.email || "",
+      role: "student",
+      createdAt: serverTimestamp(),
+    });
+  } else {
+    // Optionally update missing fields (don't overwrite custom roles)
+    const data = userSnap.data() || {};
+    const updates: any = {};
+    if (!data.email && user.email) updates.email = user.email;
+    if (!data.name && user.displayName) updates.name = user.displayName;
+    if (Object.keys(updates).length > 0) {
+      await setDoc(userDocRef, { ...data, ...updates });
+    }
+  }
+
+  return user;
+};
