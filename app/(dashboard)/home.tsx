@@ -13,7 +13,7 @@ import {
   Image,
   TextInput,
 } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
+import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Picker } from "@react-native-picker/picker";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -677,27 +677,66 @@ const Home = () => {
                 {searchResults.textbooks.length > 0 && (
                     <>
                       <Text style={styles.searchResultsCategory}>📖 Textbooks</Text>
-                      {searchResults.textbooks.map((book: any) => (
+                      {searchResults.textbooks.map((book: any) => {
+                        const cardColor = book.coverColor || '#4CAF50';
+                        const isSinhala = book.medium?.toLowerCase() === 'sinhala';
+                        const isEnglish = book.medium?.toLowerCase() === 'english';
+
+                        return (
                           <Pressable
-                              key={book.id}
-                              style={styles.searchResultItem}
-                              onPress={() => {
-                                if (book.url) {
-                                  Linking.openURL(book.url);
-                                }
-                                clearSearch();
-                              }}
+                            key={book.id}
+                            style={{ backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#f0f4f8' }}
+                            onPress={() => {
+                              if (book.url) Linking.openURL(book.url);
+                              clearSearch();
+                            }}
                           >
-                            <View style={styles.searchResultIcon}>
-                              <FontAwesome name="book" size={16} color="#16A34A" />
+                            {/* Medium Badge */}
+                            {(isSinhala || isEnglish) && (
+                              <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}>
+                                <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.95)', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2 }}>
+                                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#1f2937' }}>{isSinhala ? '📗 සිංහල' : '📘 English'}</Text>
+                                </View>
+                              </View>
+                            )}
+
+                            {/* Cover */}
+                            <View style={{ height: 100, backgroundColor: book.coverColor || cardColor, justifyContent: 'center', alignItems: 'center' }}>
+                              <MaterialIcons name="book" size={44} color="#FFFFFF" />
                             </View>
-                            <View style={styles.searchResultInfo}>
-                              <Text style={styles.searchResultTitle}>{book.subject}</Text>
-                              <Text style={styles.searchResultSubtitle}>Grade {book.grade} • {book.medium}</Text>
+
+                            {/* Info */}
+                            <View style={{ padding: 14, backgroundColor: '#ffffff' }}>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1f2937', marginBottom: 6 }}>{book.subject || book.title}</Text>
+
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+                                {book.grade && (
+                                  <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 8, marginBottom: 6 }}>
+                                    <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>Grade {book.grade}</Text>
+                                  </View>
+                                )}
+                                {book.medium && (
+                                  <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 6 }}>
+                                    <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: '600' }}>{book.medium}</Text>
+                                  </View>
+                                )}
+                              </View>
+
+                              {book.description && (
+                                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 12 }} numberOfLines={2}>{book.description}</Text>
+                              )}
+
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <View style={{ flex: 1 }}>
+                                  <Pressable onPress={() => { if (book.url) Linking.openURL(book.url); clearSearch(); }} style={{ backgroundColor: '#2563EB', paddingVertical: 10, borderRadius: 10, alignItems: 'center' }}>
+                                    <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>View Textbook</Text>
+                                  </Pressable>
+                                </View>
+                              </View>
                             </View>
-                            <FontAwesome name="chevron-right" size={14} color="#9ca3af" />
                           </Pressable>
-                      ))}
+                        );
+                      })}
                     </>
                 )}
 
