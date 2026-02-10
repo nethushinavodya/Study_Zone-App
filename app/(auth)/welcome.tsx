@@ -35,7 +35,7 @@ const Welcome = () => {
 
       // If there's already an authenticated user and biometrics are required, prompt briefly
       if (requireBiometric && user && !isLoading) {
-        Toast.show({ type: 'info', text1: 'Quick Unlock available', text2: 'Use your fingerprint / FaceID to unlock the app' });
+        Toast.show({ type: 'info', text1: 'Quick Unlock available', text2: 'Use your fingerprint' });
         try {
           await promptBiometrics();
         } catch (e) {

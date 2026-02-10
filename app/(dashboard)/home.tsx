@@ -70,7 +70,6 @@ const Home = () => {
 
   const greeting = getGreeting();
 
-  // Start animations when component mounts
   useEffect(() => {
     // Header fade and slide in
     Animated.parallel([

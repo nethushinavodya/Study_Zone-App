@@ -138,7 +138,7 @@ const Register = () => {
                 'biometric_credentials',
                 JSON.stringify({ email: email.trim(), password }),
               );
-              Toast.show({ type: 'success', text1: 'Biometrics enabled', text2: 'You can now unlock the app with your fingerprint / FaceID' });
+              Toast.show({ type: 'success', text1: 'Biometrics enabled', text2: 'You can now unlock the app with your fingerprint' });
             } catch (e) {
               console.log('Failed to store biometric credentials', e);
             }
@@ -216,7 +216,7 @@ const Register = () => {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 2 }}>
-                    Use Fingerprint / FaceID
+                    Use Fingerprint
                   </Text>
                   <Text style={{ fontSize: 13, color: '#6B7280' }}>
                     Unlock app with biometrics instead of typing password

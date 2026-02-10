@@ -446,7 +446,7 @@ export default function Profile() {
                   </View>
                   <View style={styles.settingsOptionContent}>
                     <Text style={styles.settingsOptionTitle}>
-                      Use Fingerprint / FaceID
+                      Use Fingerprint
                     </Text>
                     <Text style={styles.settingsOptionSubtitle}>
                       Unlock app with biometrics instead of logging in every time
@@ -643,7 +643,7 @@ export default function Profile() {
                       // verify credentials by attempting login (this helps avoid storing wrong pw)
                       await loginUser(user.email, biometricPassword);
                       await SecureStore.setItemAsync('biometric_credentials', JSON.stringify({ email: user.email, password: biometricPassword }));
-                      Toast.show({ type: 'success', text1: 'Biometrics ready', text2: 'You can now unlock the app with fingerprint/FaceID.' });
+                      Toast.show({ type: 'success', text1: 'Biometrics ready', text2: 'You can now unlock the app with fingerprint.' });
                       setPasswordPromptVisible(false);
                       setBiometricPassword('');
                     } catch (err) {
