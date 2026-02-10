@@ -1,7 +1,7 @@
 import { useLoader } from "@/hooks/useLoader";
 import { loginUser, signInWithGoogle } from "@/service/authService";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Image,
   Keyboard,
@@ -16,24 +16,78 @@ import {
 } from "react-native";
 
 import LoadingDots from "@/components/ui/loading-dots";
-import { auth } from "@/service/firebase";
-import { FontAwesome } from "@expo/vector-icons";
-import {
-  AuthRequestPromptOptions,
-  AuthSessionRedirectUriOptions,
-  makeRedirectUri,
-} from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import Toast from "react-native-toast-message";
+import { useAuth } from '@/hooks/useAuth';
+import * as SecureStore from 'expo-secure-store';
+import {AuthRequestPromptOptions, AuthSessionRedirectUriOptions, makeRedirectUri} from "expo-auth-session";
+import {FontAwesome, MaterialIcons} from "@expo/vector-icons";
 
 const Login = () => {
   const router = useRouter();
   const { showLoader, hideLoader, isLoading, loadingMessage } = useLoader();
+  const { requireBiometric, promptBiometrics } = useAuth();
   const [email, setEmail] = React.useState<string>("");
   const [password, setPassword] = React.useState<string>("");
   const [showPassword, setShowPassword] = React.useState<boolean>(false);
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
+  const [hasBiometricCredentials, setHasBiometricCredentials] = React.useState(false);
+  const [storedCreds, setStoredCreds] = React.useState<{email: string; password: string} | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const v = await SecureStore.getItemAsync('biometric_credentials');
+        if (v) {
+          const parsed = JSON.parse(v);
+          if (parsed?.email && parsed?.password) {
+            setHasBiometricCredentials(true);
+            setStoredCreds(parsed);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to read biometric credentials', e);
+      }
+    })();
+  }, []);
+
+  // Auto-attempt biometric login once when app loads if biometrics are enabled and creds exist
+  const autoTriedRef = useRef(false);
+  useEffect(() => {
+    if (isLoading) return; // don't auto-attempt while global loader is active
+    if (requireBiometric && hasBiometricCredentials && storedCreds && !autoTriedRef.current) {
+      autoTriedRef.current = true;
+      // slight delay to allow UI to mount
+      setTimeout(() => {
+        biometricLogin();
+      }, 250);
+    }
+  }, [requireBiometric, hasBiometricCredentials, storedCreds, isLoading]);
+
+  const biometricLogin = async () => {
+    if (!hasBiometricCredentials || !storedCreds) return;
+    try {
+      const ok = await promptBiometrics();
+      if (!ok) {
+        Toast.show({ type: 'error', text1: 'Authentication failed', text2: 'Unable to verify biometrics' });
+        return;
+      }
+      showLoader('Signing in with biometrics...');
+      try {
+        await loginUser(storedCreds.email, storedCreds.password);
+        router.replace('/(dashboard)/home');
+      } catch (err) {
+        console.log('Biometric login failed', err);
+        Toast.show({ type: 'error', text1: 'Login failed', text2: 'Biometric login failed. Please sign in with email and password.' });
+      } finally {
+        hideLoader();
+      }
+    } catch (e) {
+      console.error('biometricLogin error', e);
+      Toast.show({ type: 'error', text1: 'Biometrics', text2: 'Biometric authentication failed.' });
+    }
+  };
 
   type ExtendedAuthRequestPromptOptions = AuthRequestPromptOptions & {
     useProxy?: boolean;
@@ -231,6 +285,16 @@ const Login = () => {
                 </Text>
               </View>
             </Pressable>
+
+            {/* Biometric login button */}
+            {requireBiometric && hasBiometricCredentials && !isLoading ? (
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity onPress={biometricLogin} style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, elevation: 4 }}>
+                  <MaterialIcons name="fingerprint" size={28} color="#16A34A" />
+                </TouchableOpacity>
+                <Text style={{ marginTop: 8, color: '#6B7280' }}>Sign in with fingerprint</Text>
+              </View>
+            ) : null}
 
             {/* Create Account */}
             <TouchableOpacity

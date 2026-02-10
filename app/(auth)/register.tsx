@@ -13,26 +13,25 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Switch,
 } from "react-native";
 
 import LoadingDots from "@/components/ui/loading-dots";
-import { auth } from "@/service/firebase";
-import { FontAwesome } from "@expo/vector-icons";
-import {
-  AuthRequestPromptOptions,
-  AuthSessionRedirectUriOptions,
-  makeRedirectUri,
-} from "expo-auth-session";
-import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+import {AuthRequestPromptOptions, AuthSessionRedirectUriOptions, makeRedirectUri} from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
+import { useAuth } from '@/hooks/useAuth';
+import * as SecureStore from 'expo-secure-store';
 import Toast from "react-native-toast-message";
+import {FontAwesome, MaterialIcons} from "@expo/vector-icons";
 
 const Register = () => {
   type ExtendedAuthRequestPromptOptions = AuthRequestPromptOptions & {
     useProxy?: boolean;
   };
   const router = useRouter();
+  const { enableBiometrics, disableBiometrics } = useAuth();
+  const [useBiometrics, setUseBiometrics] = React.useState<boolean>(false);
 
   const [name, setName] = React.useState<string>("");
   const [email, setEmail] = React.useState<string>("");
@@ -88,7 +87,32 @@ const Register = () => {
       }
     };
     handleGoogleResponse();
-  }, [response]);
+  }, [response, showLoader, hideLoader, router]);
+
+  const onToggleBiometrics = async (val: boolean) => {
+    if (val) {
+      try {
+        const ok = await enableBiometrics();
+        if (ok) {
+          setUseBiometrics(true);
+          Toast.show({ type: 'success', text1: 'Biometrics ready', text2: 'Biometric unlock will be enabled after you register.' });
+        } else {
+          setUseBiometrics(false);
+          Toast.show({ type: 'error', text1: 'Biometrics not available', text2: 'Device does not support biometrics or none are enrolled.' });
+        }
+      } catch (e) {
+        setUseBiometrics(false);
+        Toast.show({ type: 'error', text1: 'Biometrics error' });
+      }
+    } else {
+      try {
+        await disableBiometrics();
+      } catch (e) {
+        // ignore
+      }
+      setUseBiometrics(false);
+    }
+  };
 
   const handleRegister = async () => {
     if (!name || !email || !password || !confirmPassword || isLoading) {
@@ -103,6 +127,27 @@ const Register = () => {
     try {
       await registerUser(name.trim(), email.trim(), password);
       Toast.show({ type: "success", text1: "Registration Successful" });
+
+      // If user chose biometric during registration, ensure it's enabled and store credentials
+      if (useBiometrics) {
+        try {
+          const enabled = await enableBiometrics();
+          if (enabled) {
+            try {
+              await SecureStore.setItemAsync(
+                'biometric_credentials',
+                JSON.stringify({ email: email.trim(), password }),
+              );
+              Toast.show({ type: 'success', text1: 'Biometrics enabled', text2: 'You can now unlock the app with your fingerprint / FaceID' });
+            } catch (e) {
+              console.log('Failed to store biometric credentials', e);
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
       router.replace("/(auth)/login");
     } catch (error) {
       console.log(error);
@@ -163,6 +208,22 @@ const Register = () => {
               <Text className="text-2xl font-bold text-gray-900">
                 and start learning!
               </Text>
+
+              {/* Biometric opt-in (during registration) */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <MaterialIcons name="fingerprint" size={22} color="#F59E0B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 2 }}>
+                    Use Fingerprint / FaceID
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                    Unlock app with biometrics instead of typing password
+                  </Text>
+                </View>
+                <Switch value={useBiometrics} onValueChange={onToggleBiometrics} />
+              </View>
             </View>
 
             {/* Name Input */}
