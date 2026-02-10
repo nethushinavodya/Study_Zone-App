@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon2.png",
     "scheme": "studyzone",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,

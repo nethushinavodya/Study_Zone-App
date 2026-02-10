@@ -13,7 +13,7 @@ import {
   Image,
   TextInput,
 } from "react-native";
-import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Picker } from "@react-native-picker/picker";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -70,6 +70,7 @@ const Home = () => {
 
   const greeting = getGreeting();
 
+  // Start animations when component mounts
   useEffect(() => {
     // Header fade and slide in
     Animated.parallel([
@@ -468,10 +469,10 @@ const Home = () => {
                       </View>
 
                       <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.textbooksHorizontalScroll}
-                        contentContainerStyle={styles.textbooksHorizontalContent}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.textbooksHorizontalScroll}
+                          contentContainerStyle={styles.textbooksHorizontalContent}
                       >
                         {books.map((item, index) => {
                           const cardColor = item.coverColor || '#4CAF50';
@@ -479,69 +480,69 @@ const Home = () => {
                           const isEnglish = item.medium?.toLowerCase() === 'english';
 
                           return (
-                            <View
-                              key={item.id}
-                              style={[
-                                styles.textbookGridCard,
-                                { backgroundColor: cardColor }
-                              ]}
-                            >
-                                          {/* Medium Badge */}
-                                          {(isSinhala || isEnglish) && (
-                                              <View style={styles.mediumBadgeContainer}>
-                                                <View style={[
-                                                  styles.mediumBadge,
-                                                  isSinhala ? styles.sinhalaBadge : styles.englishBadge
-                                                ]}>
-                                                  <Text style={styles.mediumBadgeText}>
-                                                    {isSinhala ? '📗 සිංහල' : '📘 English'}
-                                                  </Text>
-                                                </View>
-                                              </View>
-                                          )}
+                              <View
+                                  key={item.id}
+                                  style={[
+                                    styles.textbookGridCard,
+                                    { backgroundColor: cardColor }
+                                  ]}
+                              >
+                                {/* Medium Badge */}
+                                {(isSinhala || isEnglish) && (
+                                    <View style={styles.mediumBadgeContainer}>
+                                      <View style={[
+                                        styles.mediumBadge,
+                                        isSinhala ? styles.sinhalaBadge : styles.englishBadge
+                                      ]}>
+                                        <Text style={styles.mediumBadgeText}>
+                                          {isSinhala ? '📗 සිංහල' : '📘 English'}
+                                        </Text>
+                                      </View>
+                                    </View>
+                                )}
 
-                                          <View style={styles.textbookCover}>
-                                            <FontAwesome name="book" size={36} color="#ffffff" style={{ opacity: 0.9 }} />
-                                          </View>
-                                          <View style={styles.textbookInfo}>
-                                            <Text style={styles.textbookSubjectLabel} numberOfLines={2}>{item.title}</Text>
-                                            <View style={styles.textbookMetadata}>
-                                              <View style={styles.textbookGradeBadge}>
-                                                <Text style={styles.textbookGradeBadgeText}>Grade {item.grade}</Text>
-                                              </View>
-                                            </View>
-                                            {item.description && (
-                                                <Text style={styles.textbookDescription} numberOfLines={2}>
-                                                  {item.description}
-                                                </Text>
-                                            )}
+                                <View style={styles.textbookCover}>
+                                  <FontAwesome name="book" size={36} color="#ffffff" style={{ opacity: 0.9 }} />
+                                </View>
+                                <View style={styles.textbookInfo}>
+                                  <Text style={styles.textbookSubjectLabel} numberOfLines={2}>{item.title}</Text>
+                                  <View style={styles.textbookMetadata}>
+                                    <View style={styles.textbookGradeBadge}>
+                                      <Text style={styles.textbookGradeBadgeText}>Grade {item.grade}</Text>
+                                    </View>
+                                  </View>
+                                  {item.description && (
+                                      <Text style={styles.textbookDescription} numberOfLines={2}>
+                                        {item.description}
+                                      </Text>
+                                  )}
 
-                                            {/* Action Buttons */}
-                                            <View style={styles.textbookActions}>
-                                              <Pressable
-                                                  style={styles.previewBtn}
-                                                  onPress={() => item.url && Linking.openURL(item.url)}
-                                              >
-                                                <FontAwesome name="eye" size={12} color="#ffffff" />
-                                                <Text style={styles.previewBtnText}>Preview</Text>
-                                              </Pressable>
-                                              <Pressable
-                                                  style={[
-                                                    styles.bookmarkBtn,
-                                                    bookmarkedTextbooks.has(item.id) && styles.bookmarkedBtn
-                                                  ]}
-                                                  onPress={() => handleBookmark(item)}
-                                              >
-                                                <FontAwesome
-                                                    name={bookmarkedTextbooks.has(item.id) ? "bookmark" : "bookmark-o"}
-                                                    size={12}
-                                                    color={bookmarkedTextbooks.has(item.id) ? "#ffffff" : "#6b7280"}
-                                                />
-                                              </Pressable>
-                                            </View>
-                                          </View>
-                                        </View>
-                                    );
+                                  {/* Action Buttons */}
+                                  <View style={styles.textbookActions}>
+                                    <Pressable
+                                        style={styles.previewBtn}
+                                        onPress={() => item.url && Linking.openURL(item.url)}
+                                    >
+                                      <FontAwesome name="eye" size={12} color="#ffffff" />
+                                      <Text style={styles.previewBtnText}>Preview</Text>
+                                    </Pressable>
+                                    <Pressable
+                                        style={[
+                                          styles.bookmarkBtn,
+                                          bookmarkedTextbooks.has(item.id) && styles.bookmarkedBtn
+                                        ]}
+                                        onPress={() => handleBookmark(item)}
+                                    >
+                                      <FontAwesome
+                                          name={bookmarkedTextbooks.has(item.id) ? "bookmark" : "bookmark-o"}
+                                          size={12}
+                                          color={bookmarkedTextbooks.has(item.id) ? "#ffffff" : "#6b7280"}
+                                      />
+                                    </Pressable>
+                                  </View>
+                                </View>
+                              </View>
+                          );
                         })}
                       </ScrollView>
                     </View>
@@ -676,66 +677,27 @@ const Home = () => {
                 {searchResults.textbooks.length > 0 && (
                     <>
                       <Text style={styles.searchResultsCategory}>📖 Textbooks</Text>
-                      {searchResults.textbooks.map((book: any) => {
-                        const cardColor = book.coverColor || '#4CAF50';
-                        const isSinhala = book.medium?.toLowerCase() === 'sinhala';
-                        const isEnglish = book.medium?.toLowerCase() === 'english';
-
-                        return (
+                      {searchResults.textbooks.map((book: any) => (
                           <Pressable
-                            key={book.id}
-                            style={{ backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#f0f4f8' }}
-                            onPress={() => {
-                              if (book.url) Linking.openURL(book.url);
-                              clearSearch();
-                            }}
+                              key={book.id}
+                              style={styles.searchResultItem}
+                              onPress={() => {
+                                if (book.url) {
+                                  Linking.openURL(book.url);
+                                }
+                                clearSearch();
+                              }}
                           >
-                            {/* Medium Badge */}
-                            {(isSinhala || isEnglish) && (
-                              <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}>
-                                <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.95)', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2 }}>
-                                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#1f2937' }}>{isSinhala ? '📗 සිංහල' : '📘 English'}</Text>
-                                </View>
-                              </View>
-                            )}
-
-                            {/* Cover */}
-                            <View style={{ height: 100, backgroundColor: book.coverColor || cardColor, justifyContent: 'center', alignItems: 'center' }}>
-                              <MaterialIcons name="book" size={44} color="#FFFFFF" />
+                            <View style={styles.searchResultIcon}>
+                              <FontAwesome name="book" size={16} color="#16A34A" />
                             </View>
-
-                            {/* Info */}
-                            <View style={{ padding: 14, backgroundColor: '#ffffff' }}>
-                              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1f2937', marginBottom: 6 }}>{book.subject || book.title}</Text>
-
-                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
-                                {book.grade && (
-                                  <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 8, marginBottom: 6 }}>
-                                    <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>Grade {book.grade}</Text>
-                                  </View>
-                                )}
-                                {book.medium && (
-                                  <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 6 }}>
-                                    <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: '600' }}>{book.medium}</Text>
-                                  </View>
-                                )}
-                              </View>
-
-                              {book.description && (
-                                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 12 }} numberOfLines={2}>{book.description}</Text>
-                              )}
-
-                              <View style={{ flexDirection: 'row', gap: 8 }}>
-                                <View style={{ flex: 1 }}>
-                                  <Pressable onPress={() => { if (book.url) Linking.openURL(book.url); clearSearch(); }} style={{ backgroundColor: '#2563EB', paddingVertical: 10, borderRadius: 10, alignItems: 'center' }}>
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>View Textbook</Text>
-                                  </Pressable>
-                                </View>
-                              </View>
+                            <View style={styles.searchResultInfo}>
+                              <Text style={styles.searchResultTitle}>{book.subject}</Text>
+                              <Text style={styles.searchResultSubtitle}>Grade {book.grade} • {book.medium}</Text>
                             </View>
+                            <FontAwesome name="chevron-right" size={14} color="#9ca3af" />
                           </Pressable>
-                        );
-                      })}
+                      ))}
                     </>
                 )}
 
